@@ -7,7 +7,7 @@ import csv
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from PIL import Image
+from PIL import Image, ImageFilter
 import h5py
 import cv2
 from typing import *
@@ -32,13 +32,17 @@ def preprocess(img, desired_size=320):
     old_size = img.size
     ratio = float(desired_size)/max(old_size)
     new_size = tuple([int(x*ratio) for x in old_size])
-    img = img.resize(new_size, Image.ANTIALIAS)
+    img = img.resize(new_size, Image.Resampling.LANCZOS)
     # create a new image and paste the resized on it
 
     new_img = Image.new('L', (desired_size, desired_size))
     new_img.paste(img, ((desired_size-new_size[0])//2,
                         (desired_size-new_size[1])//2))
     return new_img
+
+from PIL import Image, ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def img_to_hdf5(cxr_paths: List[Union[str, Path]], out_filepath: str, resolution=320): 
     """
@@ -52,10 +56,12 @@ def img_to_hdf5(cxr_paths: List[Union[str, Path]], out_filepath: str, resolution
         for idx, path in enumerate(tqdm(cxr_paths)):
             try: 
                 # read image using cv2
-                img = cv2.imread(str(path))
+                print(path)
+                img_pil = Image.open(path).convert('RGB')
+                # print(img_pil)
                 # convert to PIL Image object
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img_pil = Image.fromarray(img)
+                # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                # img_pil = Image.fromarray(img)
                 # preprocess
                 img = preprocess(img_pil, desired_size=resolution)     
                 img_dset[idx] = img
