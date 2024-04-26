@@ -7,6 +7,7 @@ from monai.transforms import Compose, Rotate, Flip, ToTensor
 from monai.data.test_time_augmentation import TestTimeAugmentation
 import torch
 import tta_fns
+import eval
 ## Define Zero Shot Labels and Templates
 
 # ----- DIRECTORIES ------ #
@@ -39,40 +40,47 @@ for subdir, dirs, files in os.walk(model_dir):
 print(model_paths)
 
 # computes predictions for a set of images stored as a np array of probabilities for each pathology
-# predictions, y_pred_avg = zero_shot.ensemble_models(
-#     model_paths=model_paths, 
-#     cxr_filepath=cxr_filepath, 
-#     cxr_labels=cxr_labels, 
-#     cxr_pair_template=cxr_pair_template, 
-#     cache_dir=cache_dir,
-# )
-
-import eval
+predictions, y_pred_avg = zero_shot.ensemble_models(
+    model_paths=model_paths, 
+    cxr_filepath=cxr_filepath, 
+    cxr_labels=cxr_labels, 
+    cxr_pair_template=cxr_pair_template, 
+    cache_dir=cache_dir,
+)
 
 # loads in ground truth labels into memory
-# test_pred = y_pred_avg
-# test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+test_pred = y_pred_avg
+test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
 
-# # evaluate model, no bootstrap
-# cxr_results: pd.DataFrame = eval.evaluate(test_pred, test_true, cxr_labels) # eval on full test datset
+# evaluate model, no bootstrap
+cxr_results: pd.DataFrame = eval.evaluate(test_pred, test_true, cxr_labels) # eval on full test datset
 
-# # boostrap evaluations for 95% confidence intervals
-# bootstrap_results: Tuple[pd.DataFrame, pd.DataFrame] = eval.bootstrap(test_pred, test_true, cxr_labels) # (df of results for each bootstrap, df of CI)
+# boostrap evaluations for 95% confidence intervals
+bootstrap_results: Tuple[pd.DataFrame, pd.DataFrame] = eval.bootstrap(test_pred, test_true, cxr_labels) # (df of results for each bootstrap, df of CI)
 
-# # print results with confidence intervals
-# print(bootstrap_results[1])
+# print results with confidence intervals
+print(bootstrap_results[1])
 
 # TTA
-from zero_shot import load_clip
+# Define transforms for TTA
+# transforms = Compose([
+#     Rotate(angle=30),
+#     Flip(spatial_axis = 0),
+#     ToTensor()
+# ])
+from monai.transforms import Compose, Rotate, Flip, ToTensor, RandAffine
+# transforms = RandAffine(
+#     rotate_range=(-30, 30),
+#     translate_range=(0.1, 0.1),
+#     scale_range=(0.9, 1.1),
+#     shear_range=(0.1, 0.1),
+#     mode=("bilinear", "nearest"),
+# )
 
-transforms = Compose([
-    Rotate(angle=30),
-    Flip(spatial_axis = 0),
-    ToTensor()
-])
+# model_pth = model_paths[0]
+# model, loader = zero_shot.make(model_, cxr_filepath)
 
-model_pth = model_paths[0]
-model, loader = zero_shot.make(model_pth, cxr_filepath)
+transforms = Rotate(angle=30)
 
 
 predictions_tta, y_pred_avg_tta = tta_fns.ensemble_models_tta(
@@ -80,20 +88,25 @@ predictions_tta, y_pred_avg_tta = tta_fns.ensemble_models_tta(
     cxr_filepath=cxr_filepath, 
     cxr_labels=cxr_labels, 
     cxr_pair_template=cxr_pair_template, 
+    transforms=transforms,
     cache_dir=cache_dir,
 )
 # all_augmented_inputs = torch.cat(augmented_inputs, dim=0)
 
 # loads in ground truth labels into memory
 test_pred_tta = y_pred_avg_tta
-test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+# test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
 
 # evaluate model, no bootstrap
-cxr_results: pd.DataFrame = eval.evaluate(test_pred_tta, test_true, cxr_labels) # eval on full test datset
+cxr_results_tta: pd.DataFrame = eval.evaluate(test_pred_tta, test_true, cxr_labels) # eval on full test datset
 
 # boostrap evaluations for 95% confidence intervals
-bootstrap_results: Tuple[pd.DataFrame, pd.DataFrame] = eval.bootstrap(test_pred_tta, test_true, cxr_labels) # (df of results for each bootstrap, df of CI)
+bootstrap_results_tta: Tuple[pd.DataFrame, pd.DataFrame] = eval.bootstrap(test_pred_tta, test_true, cxr_labels) # (df of results for each bootstrap, df of CI)
 
 # print results with confidence intervals
+print('TTA Results:')
+print(bootstrap_results_tta[1])
+
+print('Results:')
 print(bootstrap_results[1])
 
