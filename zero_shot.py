@@ -1,3 +1,4 @@
+from pathlib import Path
 import subprocess
 import numpy as np
 import os
@@ -23,8 +24,8 @@ import clip
 from model import CLIP
 from eval import evaluate, plot_roc, accuracy, sigmoid, bootstrap, compute_cis
 
-CXR_FILEPATH = '../../project-files/data/test_cxr.h5'
-FINAL_LABEL_PATH = '../../project-files/data/final_paths.csv'
+CXR_FILEPATH = 'data/test_cxr.h5'
+FINAL_LABEL_PATH = 'data/final_paths.csv'
 
 class CXRTestDataset(data.Dataset):
     """Represents an abstract HDF5 dataset.
