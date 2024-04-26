@@ -15,6 +15,7 @@ def ensemble_models_tta(
     cxr_filepath: str, 
     cxr_labels: List[str], 
     cxr_pair_template: Tuple[str], 
+    transforms,
     cache_dir: str = None, 
     save_name: str = None,
 ) -> Tuple[List[np.ndarray], np.ndarray]: 
@@ -37,23 +38,24 @@ def ensemble_models_tta(
             cxr_filepath=cxr_filepath, 
         ) 
         
-        # path to the cached prediction
-        if cache_dir is not None:
-            if save_name is not None: 
-                cache_path = Path(cache_dir) / f"{save_name}_{model_name}.npy"
-            else: 
-                cache_path = Path(cache_dir) / f"{model_name}.npy"
+    #     # path to the cached prediction
+    #     if cache_dir is not None:
+    #         if save_name is not None: 
+    #             cache_path = Path(cache_dir) / f"{save_name}_{model_name}.npy"
+    #         else: 
+    #             cache_path = Path(cache_dir) / f"{model_name}.npy"
 
-        # if prediction already cached, don't recompute prediction
-        if cache_dir is not None and os.path.exists(cache_path): 
-            print("Loading cached prediction for {}".format(model_name))
-            y_pred = np.load(cache_path)
-        else: # cached prediction not found, compute preds
-            print("Inferring model {}".format(path))
-            y_pred = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template)
-            if cache_dir is not None: 
-                Path(cache_dir).mkdir(exist_ok=True, parents=True)
-                np.save(file=cache_path, arr=y_pred)
+    #     transforms = np.load(cache_path)
+    #     # if prediction already cached, don't recompute prediction
+    #     if cache_dir is not None and os.path.exists(cache_path): 
+    #         print("Loading cached prediction for {}".format(model_name))
+            # y_pred = np.load(cache_path)
+        # else: # cached prediction not found, compute preds
+        print("Inferring model {}".format(path))
+        y_pred = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template, transforms=transforms)
+        # if cache_dir is not None: 
+        #         Path(cache_dir).mkdir(exist_ok=True, parents=True)
+        #         np.save(file=cache_path, arr=y_pred)
         predictions.append(y_pred)
     
     # compute average predictions
@@ -61,7 +63,7 @@ def ensemble_models_tta(
     
     return predictions, y_pred_avg
 
-def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, context_length: int = 77): 
+def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, transforms, context_length: int = 77): 
     """
     Run softmax evaluation to obtain a single prediction from the model.
     """
@@ -70,9 +72,9 @@ def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, con
     neg = pair_template[1]
 
     # get pos and neg predictions, (num_samples, num_classes)
-    pos_pred = run_single_prediction_tta(eval_labels, pos, model, loader, 
+    pos_pred = run_single_prediction_tta(eval_labels, pos, model, loader, transforms,
                                      softmax_eval=True, context_length=context_length) 
-    neg_pred = run_single_prediction_tta(eval_labels, neg, model, loader, 
+    neg_pred = run_single_prediction_tta(eval_labels, neg, model, loader, transforms,
                                      softmax_eval=True, context_length=context_length) 
 
     # compute probabilities with softmax
@@ -80,7 +82,7 @@ def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, con
     y_pred = np.exp(pos_pred) / sum_pred
     return y_pred
 
-def run_single_prediction_tta(cxr_labels, template, model, loader, softmax_eval=True, context_length=77): 
+def run_single_prediction_tta(cxr_labels, template, model, loader, transforms, softmax_eval=True, context_length=77): 
     """
     FUNCTION: run_single_prediction
     --------------------------------------
@@ -99,7 +101,7 @@ def run_single_prediction_tta(cxr_labels, template, model, loader, softmax_eval=
     """
     cxr_phrase = [template]
     zeroshot_weights = zs.zeroshot_classifier(cxr_labels, cxr_phrase, model, context_length=context_length)
-    y_pred = predict_tta(loader, model, zeroshot_weights, softmax_eval=softmax_eval)
+    y_pred = predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=softmax_eval)
     return y_pred
 
 def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, verbose=0): 
@@ -123,9 +125,12 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
     with torch.no_grad():
         for i, data in enumerate(tqdm(loader)):
             images = data['img']
-            tta = TestTimeAugmentation(transform=transforms, inferrer_fn=model, batch_size=5)
-            images = tta(images)
-
+            tta = TestTimeAugmentation(transform=transforms, batch_size=1, return_full_data=True)
+            shp = images.size()
+            # img_element = images[0,0,0].item()
+            #images = tta(images)
+            images  =tta({"image": images[0]})["image"]
+            # import pdb; pdb.set_trace()
             # predict
             image_features = model.encode_image(images) 
             image_features /= image_features.norm(dim=-1, keepdim=True) # (1, 768)
