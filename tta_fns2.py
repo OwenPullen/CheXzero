@@ -202,7 +202,8 @@ def make(
     transformations = [
         # means computed from sample in `cxr_stats` notebook
         Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
-        Rotated(keys = 'image', angle=30 * 3.1415 / 180)
+        Rotated(keys = 'image', angle=30 * 3.1415 / 180),
+        Flip(keys = 'image', spatial_axis = 0),
 
     ]
     # if using CLIP pretrained model
