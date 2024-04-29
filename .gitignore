@@ -6,3 +6,7 @@ notebooks/clip_v1_0.1_state_dict.pt
 notebooks/models
 notebooks/train/wandb
 .vscode/settings.json
+.vscode/launch.json
+combined_results.csv
+*.vscode
+*.ipynb_checkpoints
