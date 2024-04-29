@@ -1,0 +1,152 @@
+
+# # Sample Notebook for Zero-Shot Inference with CheXzero
+# This notebook walks through how to use CheXzero to perform zero-shot inference on a chest x-ray image dataset.
+
+
+# ## Import Libraries
+
+
+import os
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from typing import List, Tuple, Optional
+
+from eval import evaluate, bootstrap
+from zero_shot import make, make_true_labels, run_softmax_eval
+
+
+# ## Directories and Constants
+
+
+## Define Zero Shot Labels and Templates
+
+# ----- DIRECTORIES ------ #
+cxr_filepath: str = 'data/chexpert_test.h5' # filepath of chest x-ray images (.h5)
+cxr_true_labels_path: Optional[str] = 'data/groundtruth.csv' # (optional for evaluation) if labels are provided, provide path
+model_dir: str = 'checkpoints/chexzero_weights' # where pretrained models are saved (.pt) 
+predictions_dir: Path = Path('predictions') # where to save predictions
+cache_dir: str = predictions_dir / "cached" # where to cache ensembled predictions
+
+context_length: int = 77
+
+# ------- LABELS ------  #
+# Define labels to query each image | will return a prediction for each label
+cxr_labels: List[str] = ['Atelectasis','Cardiomegaly', 
+                                      'Consolidation', 'Edema', 'Enlarged Cardiomediastinum', 'Fracture', 'Lung Lesion',
+                                      'Lung Opacity', 'No Finding','Pleural Effusion', 'Pleural Other', 'Pneumonia', 
+                                      'Pneumothorax', 'Support Devices']
+
+# ---- TEMPLATES ----- # 
+# Define set of templates | see Figure 1 for more details                        
+cxr_pair_template: Tuple[str] = ("{}", "no {}")
+
+# ----- MODEL PATHS ------ #
+# If using ensemble, collect all model paths
+model_paths = []
+for subdir, dirs, files in os.walk(model_dir):
+    for file in files:
+        full_dir = os.path.join(subdir, file)
+        model_paths.append(full_dir)
+        
+print(model_paths)
+
+
+# ## Run Inference
+
+## Run the model on the data set using ensembled models
+from zero_shot import ensemble_models
+
+predictions, y_pred_avg = ensemble_models(
+    model_paths=model_paths, 
+    cxr_filepath=cxr_filepath, 
+    cxr_labels=cxr_labels, 
+    cxr_pair_template=cxr_pair_template, 
+    cache_dir=cache_dir,
+)
+
+
+# save averaged preds
+pred_name = "chexpert_preds.npy" # add name of preds
+predictions_dir_reg = predictions_dir / pred_name
+np.save(file=predictions_dir_reg, arr=y_pred_avg)
+
+
+# ## (Optional) Evaluate Results
+# If ground truth labels are available, compute AUC on each pathology to evaluate the performance of the zero-shot model. 
+
+
+# make test_true
+test_pred = y_pred_avg
+test_true = make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+
+# evaluate model
+cxr_results = evaluate(test_pred, test_true, cxr_labels)
+
+# boostrap evaluations for 95% confidence intervals
+bootstrap_results = bootstrap(test_pred, test_true, cxr_labels)
+
+
+# display AUC with confidence intervals
+print(bootstrap_results[1])
+
+     # means computed from sample in `cxr_stats` notebook
+        # Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
+
+
+# ## Test Time Augmentation (TTA)
+from zero_shot_tta_adaptions import ensemble_models_tta
+import torchvision.transforms as T
+from torchvision.transforms import Normalize, RandomRotation, Resize, InterpolationMode, ToTensor, RandomApply
+
+# apply transforms
+
+transforms = [
+    RandomApply([Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944))], p=0.9),
+    RandomApply([RandomRotation(30)], p=0.1),
+    RandomApply([RandomRotation(50, expand=True)], p=0.1),
+    T.RandomHorizontalFlip(p=0.1),
+    T.RandomVerticalFlip(p=0.1),
+    RandomApply([T.Resize((256, 256), interpolation=InterpolationMode.BILINEAR)], p=0.05),
+    RandomApply([T.GaussianBlur(kernel_size=3)], p=0.2),
+    RandomApply([T.transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)], p=0.2),
+    RandomApply([T.transforms.RandomAffine(degrees=30, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=0.1)], p=0.1),
+    T.RandomSolarize(192,p=0.1),
+    T.RandomErasing(p=0.1),
+]
+
+predictions_tta, y_pred_avg_tta = ensemble_models_tta(
+    model_paths=model_paths, 
+    cxr_filepath=cxr_filepath, 
+    cxr_labels=cxr_labels, 
+    cxr_pair_template=cxr_pair_template, 
+    cache_dir=cache_dir,
+    transforms=transforms
+)
+
+# save averaged preds
+pred_name_tta = "tta_chexpert_preds.npy" # add name of preds
+predictions_dir_tta = predictions_dir / pred_name_tta
+np.save(file=predictions_dir_tta, arr=y_pred_avg_tta)
+
+
+# ## (Optional) Evaluate Results
+# If ground truth labels are available, compute AUC on each pathology to evaluate the performance of the zero-shot model. 
+
+
+# make test_true
+test_pred_tta = y_pred_avg_tta
+# test_true = make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+
+# evaluate model
+cxr_results = evaluate(test_pred_tta, test_true, cxr_labels)
+
+# boostrap evaluations for 95% confidence intervals
+bootstrap_results_tta = bootstrap(test_pred_tta, test_true, cxr_labels)
+
+# display AUC with confidence intervals
+print(bootstrap_results[1])
+print(bootstrap_results_tta[1])
+
+bootstrap_results[1].append(bootstrap_results_tta[1]).to_csv("combined_results.csv")
+
