@@ -119,3 +119,51 @@ def make(
     loader = torch.utils.data.DataLoader(torch_dset, shuffle=False)
     
     return model, loader
+
+from eval import evaluate, bootstrap
+
+def run_model_with_transforms(
+    model_paths: List[str], 
+    cxr_filepath: str, 
+    cxr_labels: List[str], 
+    cxr_pair_template: Tuple[str], 
+    results_file: str,
+    predictions_dir: str,
+    pred_name_tta_transforms: str,
+    test_true: np.ndarray,
+    bootstrap_results: Tuple[np.ndarray],
+    transforms: List = [Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),],
+    cache_dir: str = None, 
+    save_name: str = None,
+
+) -> None:
+    # Run the model on the data set using ensembled models with the given transforms
+    predictions_tta, y_pred_avg_tta = ensemble_models_tta(
+        model_paths=model_paths,
+        cxr_filepath=cxr_filepath,
+        cxr_labels=cxr_labels,
+        cxr_pair_template=cxr_pair_template,
+        transforms=transforms,
+        cache_dir=cache_dir,
+        save_name=save_name,
+    )
+    test_pred_tta = y_pred_avg_tta
+    # Display AUC with confidence intervals
+    cxr_results = evaluate(test_pred_tta, test_true, cxr_labels)
+    print(results_file, '\n', cxr_results)
+    # boostrap evaluations for 95% confidence intervals
+    bootstrap_results_tta = bootstrap(test_pred_tta, test_true, cxr_labels)
+    print(bootstrap_results_tta[1])
+    # boostrap evaluations for 95% confidence intervals
+    
+    
+    # Append results to the baseline
+    combined_results = bootstrap_results[1].append(bootstrap_results_tta[1])
+    combined_results.to_csv(results_file)
+    print('Saved:', '\n', transforms, '\n', combined_results)
+    
+    # Save results of this run
+    transforms_dir_tta_transforms = predictions_dir / pred_name_tta_transforms
+    np.save(file=transforms_dir_tta_transforms, arr=transforms)
+
+    return bootstrap_results_tta[1]
