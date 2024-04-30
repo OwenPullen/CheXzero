@@ -10,3 +10,4 @@ notebooks/train/wandb
 combined_results.csv
 *.vscode
 *.ipynb_checkpoints
+results/*
