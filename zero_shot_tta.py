@@ -74,8 +74,6 @@ np.save(file=predictions_dir_reg, arr=y_pred_avg)
 
 # ## (Optional) Evaluate Results
 # If ground truth labels are available, compute AUC on each pathology to evaluate the performance of the zero-shot model. 
-
-
 # make test_true
 test_pred = y_pred_avg
 test_true = make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
@@ -94,12 +92,13 @@ print(bootstrap_results[1])
         # Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
 
 
-# ## Test Time Augmentation (TTA)
+# # ## Test Time Augmentation (TTA)
 from zero_shot_tta_adaptions import ensemble_models_tta
 import torchvision.transforms as T
 from torchvision.transforms import Normalize, RandomRotation, Resize, InterpolationMode, ToTensor, RandomApply
+from zero_shot_tta_adaptions import run_model_with_transforms
 
-# apply transforms
+# apply multiple stacked transforms
 
 transforms = [
     RandomApply([Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944))], p=0.9),
@@ -115,38 +114,132 @@ transforms = [
     T.RandomErasing(p=0.1),
 ]
 
-predictions_tta, y_pred_avg_tta = ensemble_models_tta(
+res_all = run_model_with_transforms(
+    model_paths=model_paths,
+    cxr_filepath=cxr_filepath,
+    cxr_labels=cxr_labels,
+    cxr_pair_template=cxr_pair_template,
+    results_file="results/combined_results_all.csv",
+    predictions_dir=predictions_dir,
+    pred_name_tta_transforms="tta_chexpert_preds_all.npy",
+    test_true=test_true,
+    bootstrap_results=bootstrap_results,
+    transforms=transforms
+)
+
+# ## Different types of augmentations -rotate flip (rf)
+
+transforms_rf = [
+    Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
+    RandomApply([RandomRotation(30)], p=0.5),
+    RandomApply([RandomRotation(50, expand=True)], p=0.5),
+    T.RandomHorizontalFlip(p=0.5),
+    T.RandomVerticalFlip(p=0.5),
+]
+
+res_rf = run_model_with_transforms(
     model_paths=model_paths, 
     cxr_filepath=cxr_filepath, 
     cxr_labels=cxr_labels, 
     cxr_pair_template=cxr_pair_template, 
-    cache_dir=cache_dir,
-    transforms=transforms
+    results_file="results/combined_results_rf.csv",
+    predictions_dir=predictions_dir,
+    pred_name_tta_transforms="tta_chexpert_preds_rf.npy",
+    test_true=test_true,
+    bootstrap_results=bootstrap_results,
+    transforms=transforms_rf
+)
+#
+# ## Different types of augmentations - image distortions (dt)
+transforms_dt = [
+    Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
+    RandomApply([T.GaussianBlur(kernel_size=3)], p=0.5),
+    RandomApply([T.transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1)], p=0.5),
+    T.RandomSolarize(192,p=0.5),
+    T.RandomAutocontrast(p=0.5),
+    T.RandomEqualize(p=0.5),
+    T.RandomGrayscale(p=0.5),
+    T.RandomInvert(p=0.5),
+]
+
+res_dt = run_model_with_transforms(
+    model_paths=model_paths, 
+    cxr_filepath=cxr_filepath, 
+    cxr_labels=cxr_labels, 
+    cxr_pair_template=cxr_pair_template, 
+    results_file="results/combined_results_dt.csv",
+    predictions_dir=predictions_dir,
+    pred_name_tta_transforms="tta_chexpert_preds_dt.npy",
+    test_true=test_true,
+    bootstrap_results=bootstrap_results,
+    transforms=transforms_dt
 )
 
-# save averaged preds
-pred_name_tta = "tta_chexpert_preds.npy" # add name of preds
-predictions_dir_tta = predictions_dir / pred_name_tta
-np.save(file=predictions_dir_tta, arr=y_pred_avg_tta)
+# # # ## Different types of augmentations - Resizing and cropping (rc)
+transforms_rc = [
+    Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
+    RandomApply([T.Resize((512, 512), interpolation=InterpolationMode.BILINEAR)], p=0.5),
+    RandomApply([T.CenterCrop((448, 448))], p=0.5),
+    T.RandomErasing(p=0.1),
+    T.RandomCrop((448, 448), padding=4),
+    ]
 
+res_rc = run_model_with_transforms(
+    model_paths=model_paths, 
+    cxr_filepath=cxr_filepath, 
+    cxr_labels=cxr_labels, 
+    cxr_pair_template=cxr_pair_template, 
+    results_file="results/combined_results_rc.csv",
+    predictions_dir=predictions_dir,
+    pred_name_tta_transforms="tta_chexpert_preds_rc.npy",
+    test_true=test_true,
+    bootstrap_results=bootstrap_results,
+    transforms=transforms_rc
+)
 
-# ## (Optional) Evaluate Results
-# If ground truth labels are available, compute AUC on each pathology to evaluate the performance of the zero-shot model. 
+# # ## Different types of augmentations - Random Affine (ra)
+transforms_ra = [
+    Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
+    RandomApply([T.transforms.RandomAffine(degrees=30, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=0.1)], p=0.9),
+    ]
 
+res_ra = run_model_with_transforms(
+    model_paths=model_paths,
+    cxr_filepath=cxr_filepath,
+    cxr_labels=cxr_labels,
+    cxr_pair_template=cxr_pair_template,
+    results_file="results/combined_results_ra.csv",
+    predictions_dir=predictions_dir,
+    pred_name_tta_transforms="tta_chexpert_preds_ra.npy",
+    test_true=test_true,
+    bootstrap_results=bootstrap_results,
+    transforms=transforms_ra
+)
 
-# make test_true
-test_pred_tta = y_pred_avg_tta
-# test_true = make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+# # ## Different types of augmentations - don't normailze (dn)
+transforms_dn = [
+    RandomApply([Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944))], p=0.0),
+    ]
 
-# evaluate model
-cxr_results = evaluate(test_pred_tta, test_true, cxr_labels)
+res_dn = run_model_with_transforms(
+    model_paths=model_paths,
+    cxr_filepath=cxr_filepath,
+    cxr_labels=cxr_labels,
+    cxr_pair_template=cxr_pair_template,
+    results_file="results/combined_results_dn.csv",
+    predictions_dir=predictions_dir,
+    pred_name_tta_transforms="tta_chexpert_preds_dn.npy",
+    test_true=test_true,
+    bootstrap_results=bootstrap_results,
+    transforms=transforms_dn
+)
 
-# boostrap evaluations for 95% confidence intervals
-bootstrap_results_tta = bootstrap(test_pred_tta, test_true, cxr_labels)
+# Append all res... arrays together
+all_results = np.concatenate((res_all, res_rf, res_dt, res_rc, res_ra, res_dn))
 
-# display AUC with confidence intervals
-print(bootstrap_results[1])
-print(bootstrap_results_tta[1])
+# Label the results
+result_labels = ['All', 'Rotate Flip', 'Image Distortions', 'Resizing and Cropping', 'Random Affine', 'Don\'t Normalize']
 
-bootstrap_results[1].append(bootstrap_results_tta[1]).to_csv("combined_results.csv")
-
+# Print the results
+for i, result in enumerate(all_results):
+    print(f"{result_labels[i]}: {result}")
