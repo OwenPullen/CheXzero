@@ -38,11 +38,13 @@ class CXRTestDataset(data.Dataset):
     def __init__(
         self, 
         img_path: str, 
-        transform = None, 
+        transform = None,
+        device = 'cuda'
     ):
         super().__init__()
         self.img_dset = h5py.File(img_path, 'r')['cxr']
         self.transform = transform
+        self.img_dset = self.img_dset
             
     def __len__(self):
         return len(self.img_dset)
@@ -68,7 +70,7 @@ def load_clip(model_path, pretrained=False, context_length=77):
     FUNCTION: load_clip
     ---------------------------------
     """
-    device = torch.device("cpu")
+    device = "cuda"
     if pretrained is False: 
         # use new model params
         params = {
@@ -148,13 +150,15 @@ def predict(loader, model, zeroshot_weights, softmax_eval=True, verbose=0):
     with torch.no_grad():
         for i, data in enumerate(tqdm(loader)):
             images = data['img']
+            images = images.to('cuda')
 
             # predict
-            image_features = model.encode_image(images) 
+            image_features = model.encode_image(images)
             image_features /= image_features.norm(dim=-1, keepdim=True) # (1, 768)
 
             # obtain logits
             logits = image_features @ zeroshot_weights # (1, num_classes)
+            logits = torch.Tensor.cpu(logits) # Check if this is necessary
             logits = np.squeeze(logits.numpy(), axis=0) # (num_classes,)
         
             if softmax_eval is False: 
