@@ -23,26 +23,32 @@ cxr_labels: List[str] = ['Atelectasis','Cardiomegaly',
 # Define set of templates | see Figure 1 for more details                        
 cxr_pair_template: Tuple[str] = ("{}", "no {}")
 
-transforms = monai.transforms.Rotated(keys ='image', angle=0.5)
 model, loader = make(
     model_path = model_path,
     cxr_filepath = cxr_filepath
 )
 
-# monai.transforms.LoadImage(dtype=np.float32, 'image', image_only=True)
-
-
+# Regular single model prediction without TTA
+y_pred = zero_shot.run_softmax_eval(model, loader, cxr_labels, cxr_pair_template)
+test_pred = y_pred
+test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+cxr_results: pd.DataFrame = zero_shot.evaluate(test_pred, test_true, cxr_labels) # eval on full test datset
 
 # run the TTA
 from tta_fns import run_softmax_eval
 import eval
+transforms = monai.transforms.compose.Compose([
+    monai.transforms.Rotated(keys ='image', angle=0.5),
+    monai.transforms.RandGaussianNoised(keys='image', prob=0.5)
+])
+y_pred_tta = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template, transforms=transforms)
 
-y_pred = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template, transforms=transforms)
-
-test_pred = y_pred
-test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
+test_pred_tta = y_pred_tta
+test_true_tta = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
 
 # evaluate model, no bootstrap
-cxr_results: pd.DataFrame = eval.evaluate(test_pred, test_true, cxr_labels) # eval on full test datset
+cxr_results_tta: pd.DataFrame = eval.evaluate(test_pred_tta, test_true_tta, cxr_labels) # eval on full test datset
 
+# # Display the results of the model without TTA and with TTA
 print(cxr_results)
+print(cxr_results_tta)
