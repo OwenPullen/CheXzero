@@ -8,7 +8,7 @@ import zero_shot as zs
 from tqdm import tqdm
 from eval import sigmoid
 import matplotlib.pyplot as plt
-
+from torchvision.transforms import Normalize, Resize, InterpolationMode, Compose
 
 def ensemble_models_tta(
     model_paths: List[str], 
@@ -104,7 +104,7 @@ def run_single_prediction_tta(cxr_labels, template, model, loader, transforms, s
     y_pred = predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=softmax_eval)
     return y_pred
 
-def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, verbose=0): 
+def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, verbose=False): 
     """
     FUNCTION: predict
     ---------------------------------
@@ -125,19 +125,29 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
     with torch.no_grad():
         for i, data in enumerate(tqdm(loader)):
             images = data['img']
-            tta = TestTimeAugmentation(transform=transforms, batch_size=1, return_full_data=True)
-            shp = images.size()
+            device = 'cuda'
+            images = images.to(device)
+            tta = TestTimeAugmentation(transform=transforms, batch_size=10, return_full_data=True, device=device)
             # img_element = images[0,0,0].item()
-            #images = tta(images)
-            images  =tta({"image": images[0]})["image"]
+            images = {"image": images[0]}
+            images = tta(images)
+            # import pdb; pdb.set_trace()
+            # debug goes here: directly apply the transform to the image
+            #_out = transforms(images[0])
+            #import pdb; pdb.set_trace()
+
+
+            #images  =tta()
             # import pdb; pdb.set_trace()
             # predict
             image_features = model.encode_image(images) 
             image_features /= image_features.norm(dim=-1, keepdim=True) # (1, 768)
-
+            image_features = torch.tensor(image_features, dtype=torch.float32)
             # obtain logits
+            zeroshot_weights = torch.tensor(zeroshot_weights, dtype=torch.float32)
             logits = image_features @ zeroshot_weights # (1, num_classes)
-            logits = np.squeeze(logits.numpy(), axis=0) # (num_classes,)
+            logits = torch.Tensor.cpu(logits)
+            logits = np.squeeze([logits.numpy()], axis=0) # (num_classes,)
         
             if softmax_eval is False: 
                 norm_logits = (logits - logits.mean()) / (logits.std())
@@ -146,6 +156,7 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
             y_pred.append(logits)
             
             if verbose: 
+                images = torch.Tensor.cpu(images)
                 plt.imshow(images[0][0])
                 plt.show()
                 print('images: ', images)
@@ -157,3 +168,62 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
          
     y_pred = np.array(y_pred)
     return np.array(y_pred)
+
+from zero_shot import load_clip, CXRTestDataset
+def make(
+    model_path: str, 
+    cxr_filepath: str, 
+    pretrained: bool = True, 
+    context_length: bool = 77, 
+):
+    """
+    FUNCTION: make
+    -------------------------------------------
+    This function makes the model, the data loader, and the ground truth labels. 
+    
+    args: 
+        * model_path - String for directory to the weights of the trained clip model. 
+        * context_length - int, max number of tokens of text inputted into the model. 
+        * cxr_filepath - String for path to the chest x-ray images. 
+        * cxr_labels - Python list of labels for a specific zero-shot task. (i.e. ['Atelectasis',...])
+        * pretrained - bool, whether or not model uses pretrained clip weights
+        * cutlabels - bool, if True, will keep columns of ground truth labels that correspond
+        with the labels inputted through `cxr_labels`. Otherwise, drop the first column and keep remaining.
+    
+    Returns model, data loader. 
+    """
+    # load model
+    model = load_clip(
+        model_path=model_path, 
+        pretrained=pretrained, 
+        context_length=context_length
+    )
+
+    # load data
+    transformations = [
+        # means computed from sample in `cxr_stats` notebook
+        Normalize((101.48761, 101.48761, 101.48761), (83.43944, 83.43944, 83.43944)),
+    ]
+    # if using CLIP pretrained model
+    if pretrained: 
+        # resize to input resolution of pretrained clip model
+        input_resolution = 224
+        transformations.append(Resize(input_resolution, interpolation=InterpolationMode.BICUBIC))
+    transform = Compose(transformations)
+    
+    # create dataset
+    torch_dset = CXRTestDataset(
+        img_path=cxr_filepath,
+        transform=transform, 
+    )
+    loader = torch.utils.data.DataLoader(torch_dset, shuffle=False)
+    
+    return model, loader
+
+class ImageTransform:
+    def __init__(self, transform_func: callable):
+        self.transform_func = transform_func
+    
+    def __call__(self, img):
+        pass
+
