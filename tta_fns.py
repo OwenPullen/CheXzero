@@ -148,6 +148,7 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
             logits = image_features @ zeroshot_weights # (1, num_classes)
             logits = torch.Tensor.cpu(logits)
             logits = np.squeeze([logits.numpy()], axis=0) # (num_classes,)
+            logits = np.mean(logits, axis=0)
         
             if softmax_eval is False: 
                 norm_logits = (logits - logits.mean()) / (logits.std())
