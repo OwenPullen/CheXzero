@@ -121,51 +121,50 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
         
     Returns numpy array, predictions on all test data samples. 
     """
+    device = 'cuda'
+    tta = TestTimeAugmentation(transform=transforms, batch_size=10, return_full_data=True, device=device)
     y_pred = []
     with torch.no_grad():
-        for i, data in enumerate(tqdm(loader)):
-            images = data['img']
-            device = 'cuda'
-            images = images.to(device)
-            tta = TestTimeAugmentation(transform=transforms, batch_size=10, return_full_data=True, device=device)
-            # img_element = images[0,0,0].item()
-            images = {"image": images[0]}
-            images = tta(images)
-            # import pdb; pdb.set_trace()
-            # debug goes here: directly apply the transform to the image
-            #_out = transforms(images[0])
-            #import pdb; pdb.set_trace()
+            for i, data in enumerate(tqdm(loader)):
+                images = data['img']
+                images = images.to(device)
+                    # tta = TestTimeAugmentation(transform=transforms, batch_size=10, return_full_data=True, device=device)
+                    # img_element = images[0,0,0].item()
+                images = {"image": images[0]}
+                images = tta(images)
+                    # import pdb; pdb.set_trace()
+                    # debug goes here: directly apply the transform to the image
+                    #_out = transforms(images[0])
+                    #import pdb; pdb.set_trace()
+                    #images  =tta()
+                    # import pdb; pdb.set_trace()
+                    # predict
+                image_features = model.encode_image(images) 
+                image_features /= image_features.norm(dim=-1, keepdim=True) # (1, 768)
+                image_features = torch.tensor(image_features, dtype=torch.float32)
+                # obtain logits
+                zeroshot_weights = torch.tensor(zeroshot_weights, dtype=torch.float32)
+                logits = image_features @ zeroshot_weights # (1, num_classes)
+                logits = torch.Tensor.cpu(logits)
+                logits = np.squeeze([logits.numpy()], axis=0) # (num_classes,)
+                logits = np.mean(logits, axis=0)
 
-
-            #images  =tta()
-            # import pdb; pdb.set_trace()
-            # predict
-            image_features = model.encode_image(images) 
-            image_features /= image_features.norm(dim=-1, keepdim=True) # (1, 768)
-            image_features = torch.tensor(image_features, dtype=torch.float32)
-            # obtain logits
-            zeroshot_weights = torch.tensor(zeroshot_weights, dtype=torch.float32)
-            logits = image_features @ zeroshot_weights # (1, num_classes)
-            logits = torch.Tensor.cpu(logits)
-            logits = np.squeeze([logits.numpy()], axis=0) # (num_classes,)
-            logits = np.mean(logits, axis=0)
-        
-            if softmax_eval is False: 
-                norm_logits = (logits - logits.mean()) / (logits.std())
-                logits = sigmoid(norm_logits) 
-            
-            y_pred.append(logits)
-            
-            if verbose: 
-                images = torch.Tensor.cpu(images)
-                plt.imshow(images[0][0])
-                plt.show()
-                print('images: ', images)
-                print('images size: ', images.size())
+                if softmax_eval is False: 
+                    norm_logits = (logits - logits.mean()) / (logits.std())
+                    logits = sigmoid(norm_logits) 
                 
-                print('image_features size: ', image_features.size())
-                print('logits: ', logits)
-                print('logits size: ', logits.size())
+                y_pred.append(logits)
+                
+                if verbose: 
+                    images = torch.Tensor.cpu(images)
+                    plt.imshow(images[0][0])
+                    plt.show()
+                    print('images: ', images)
+                    print('images size: ', images.size())
+                    
+                    print('image_features size: ', image_features.size())
+                    print('logits: ', logits)
+                    print('logits size: ', logits.size())
          
     y_pred = np.array(y_pred)
     return np.array(y_pred)
