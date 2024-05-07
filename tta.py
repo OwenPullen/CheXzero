@@ -38,9 +38,11 @@ cxr_results: pd.DataFrame = zero_shot.evaluate(test_pred, test_true, cxr_labels)
 from tta_fns import run_softmax_eval
 import eval
 transforms = monai.transforms.compose.Compose([
-    monai.transforms.Rotated(keys ='image', angle=0.5),
-    monai.transforms.RandGaussianNoised(keys='image', prob=0.5)
+    monai.transforms.RandRotated(keys ='image', prob=0.2, range_x=(-0.5,0.5), range_y=(-0.5,0.5), keep_size=True),
+    monai.transforms.RandGaussianNoised(keys='image', prob=0.2),
+    monai.transforms.RandFlipd(keys='image', spatial_axis=1, prob=0.2),
 ])
+
 y_pred_tta = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template, transforms=transforms)
 
 test_pred_tta = y_pred_tta
@@ -48,7 +50,18 @@ test_true_tta = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_
 
 # evaluate model, no bootstrap
 cxr_results_tta: pd.DataFrame = eval.evaluate(test_pred_tta, test_true_tta, cxr_labels) # eval on full test datset
-
 # # Display the results of the model without TTA and with TTA
 print(cxr_results)
 print(cxr_results_tta)
+
+import matplotlib.pyplot as plt
+
+cxr2 = pd.melt(cxr_results, id_vars='index', var_name = 'var', value_vars='value')
+print(cxr2)
+
+gph = pd.merge(cxr_results, cxr_results_tta, on='label')
+
+
+plt.bar(cxr_results['label'], cxr_results, alpha=0.5, label='No TTA')
+plt.bar(cxr_results_tta['label'], cxr_results_tta, alpha=0.5, label='TTA')
+plt.savefig('tta_results.png')
