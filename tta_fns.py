@@ -9,6 +9,7 @@ from tqdm import tqdm
 from eval import sigmoid
 import matplotlib.pyplot as plt
 from torchvision.transforms import Normalize, Resize, InterpolationMode, Compose
+import torchvision
 
 def ensemble_models_tta(
     model_paths: List[str], 
@@ -63,7 +64,7 @@ def ensemble_models_tta(
     
     return predictions, y_pred_avg
 
-def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, transforms, context_length: int = 77): 
+def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, transforms, context_length: int = 77, verbose: bool=False): 
     """
     Run softmax evaluation to obtain a single prediction from the model.
     """
@@ -73,16 +74,16 @@ def run_softmax_eval(model, loader, eval_labels: list, pair_template: tuple, tra
 
     # get pos and neg predictions, (num_samples, num_classes)
     pos_pred = run_single_prediction_tta(eval_labels, pos, model, loader, transforms,
-                                     softmax_eval=True, context_length=context_length) 
+                                     softmax_eval=True, context_length=context_length, verbose=verbose) 
     neg_pred = run_single_prediction_tta(eval_labels, neg, model, loader, transforms,
-                                     softmax_eval=True, context_length=context_length) 
+                                     softmax_eval=True, context_length=context_length, verbose=verbose)
 
     # compute probabilities with softmax
     sum_pred = np.exp(pos_pred) + np.exp(neg_pred)
     y_pred = np.exp(pos_pred) / sum_pred
     return y_pred
 
-def run_single_prediction_tta(cxr_labels, template, model, loader, transforms, softmax_eval=True, context_length=77): 
+def run_single_prediction_tta(cxr_labels, template, model, loader, transforms, softmax_eval=True, context_length=77, verbose=False): 
     """
     FUNCTION: run_single_prediction
     --------------------------------------
@@ -101,7 +102,7 @@ def run_single_prediction_tta(cxr_labels, template, model, loader, transforms, s
     """
     cxr_phrase = [template]
     zeroshot_weights = zs.zeroshot_classifier(cxr_labels, cxr_phrase, model, context_length=context_length)
-    y_pred = predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=softmax_eval)
+    y_pred = predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=softmax_eval, verbose=verbose)
     return y_pred
 
 def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, verbose=False): 
@@ -127,10 +128,18 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
     with torch.no_grad():
             for i, data in enumerate(tqdm(loader)):
                 images = data['img']
+                if verbose: 
+                    # torchvision.utils.save_image(images, f'data/tta_images/img_{i}_original.png')
+                    image_np = torch.squeeze(images, 0).numpy().transpose([1,2,0])#.astype(np.uint8)
+                    print(image_np.max())
+                    plt.figure()
+                    plt.imshow(image_np[...,-1]); plt.colorbar()
+                    plt.savefig(f'data/tta_images/img_{i}_original.png')
+                    plt.close()
                 images = images.to(device)
                     # tta = TestTimeAugmentation(transform=transforms, batch_size=10, return_full_data=True, device=device)
                     # img_element = images[0,0,0].item()
-                images = {"image": images[0]}
+                images = {"image": torch.squeeze(images, 0)}
                 images = tta(images)
                     # import pdb; pdb.set_trace()
                     # debug goes here: directly apply the transform to the image
@@ -155,16 +164,29 @@ def predict_tta(loader, model, zeroshot_weights, transforms, softmax_eval=True, 
                 
                 y_pred.append(logits)
                 
-                if verbose: 
-                    images = torch.Tensor.cpu(images)
-                    plt.imshow(images[0][0])
-                    plt.show()
-                    print('images: ', images)
-                    print('images size: ', images.size())
+                if verbose:
+                    # torchvision.utils.save_image(images, f'data/tta_images/img_{i}_tta_norm_train.png')
+                    fig, axis = plt.subplots(2,5, figsize=(10,4))
+                    for j, ax in enumerate(axis.flat):
+                        image = torch.squeeze(torch.Tensor.cpu(images[j]), 0).numpy().transpose([1,2,0])
+                        ax.imshow(image[...,-1])
+                        ax.axis('off')
                     
+                    # plt.colorbar()
+                    plt.tight_layout()
+                    plt.savefig(f'data/tta_images/grid_img_{i}_tta.png')
+                    # plt.close()
+                    # image = torch.Tensor.cpu(images)
+                    # image_np = image.numpy()
+                    # img_np_s = np.squeeze([image_np],axis=0)
+                    # img_np_t = img_np_s.transpose([1,2,0])#.astype(np.uint8)
+                    # print(image_np.max()
+                    print('images size: ', images.size())
                     print('image_features size: ', image_features.size())
                     print('logits: ', logits)
-                    print('logits size: ', logits.size())
+                    # print('logits size: ', logits.size())
+                    if i >= 20:
+                        break
          
     y_pred = np.array(y_pred)
     return np.array(y_pred)
