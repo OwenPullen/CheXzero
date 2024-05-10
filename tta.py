@@ -41,7 +41,9 @@ transforms = monai.transforms.compose.Compose([
     monai.transforms.RandRotated(keys ='image', prob=0.2, range_x=(-0.5,0.5), range_y=(-0.5,0.5), keep_size=True),
     monai.transforms.RandGaussianNoised(keys='image', prob=0.2),
     monai.transforms.RandFlipd(keys='image', spatial_axis=1, prob=0.2),
+    monai.transforms.RandAffined(keys='image', prob = 0.2, rotate_range=(0.5,0.5), shear_range=(0.25,0.25))
 ])
+transforms = monai.transforms.RandomOrder(transforms)
 verbose = True
 y_pred_tta = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template, transforms=transforms, verbose=verbose)
 if verbose: 
