@@ -210,7 +210,7 @@ def bootstrap(y_pred, y_true, cxr_labels, n_samples=1000, label_idx_map=None):
     * n_total_labels >= n_cxr_labels
         `n_total_labels` is greater iff alternative labels are being tested
     '''
-    np.random.seed(97)
+    # np.random.seed(97)
     y_pred # (500, n_total_labels)
     y_true # (500, n_cxr_labels) 
     
