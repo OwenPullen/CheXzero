@@ -63,19 +63,74 @@ from torchmetrics.classification import BinaryCalibrationError
 import re
 
 bce = BinaryCalibrationError(norm = 'l1')
-
 class_list = []
 class_list_tta = []
+values = []
+
+pred_labels = test_pred[:,0]
+confidences = np.max(test_pred[:0], axis = 1)
 for i in range(14):
     err_no_tta = bce(preds = torch.tensor(test_pred[:,i]), target = torch.tensor(test_true[:,i]))
     err_tta = bce(preds = torch.tensor(test_pred_tta[:,i]), target = torch.tensor(test_true_tta[:,i]))
     print(err_no_tta, err_tta)
-    class_list.append([ #cxr_labels[i],
-                        err_no_tta, err_tta])
+    class_list.append(err_no_tta)
+    class_list_tta.append(err_tta)
 
     # class_list_tta.append(err_tta)
+
+fig, ax = bce.plot(class_list)
+fig.savefig('results/fig.png')
 print(class_list)
 
+import matplotlib.pyplot as plt
+from reliability_diagrams import reliability_diagrams
+
+pred_lab = np.array([])
+for row in test_pred:
+    threshold_row = []
+    for num in row:
+        if num > 0.5: threshold_row.append(1)
+        else: threshold_row.append(0)
+    pred_lab.append(threshold_row)
+
+df_1 = pd.DataFrame({
+    'true_label': test_true[:,0],
+    'pred_label': pred_lab[:,0],
+    'confidence': test_pred[:.0],
+})
+
+y_true = df_1.true_label.values
+y_pred = df_1.pred_label.values
+y_conf = df_1.confidence.values
+
+plt.style.use("seaborn")
+plt.rc("font", size=12)
+plt.rc("axes", labelsize=12)
+plt.rc("xtick", labelsize=12)
+plt.rc("ytick", labelsize=12)
+plt.rc("legend", fontsize=12)
+
+title = 'Plot'
+fig = reliability_diagrams(y_true, y_pred, y_conf, num_bins=10, draw_ece=True,
+                           draw_bin_importance="alpha", draw_averages=True,
+                           title=title, figsize=(6,6), dpi=100,
+                           return_fig=True
+)
+fig.savefig('results/reliability_diagram.png')
+# ece = BinaryCalibrationError(norm='l1')
+# values = []
+# values_tta = []
+
+# for _ in range(14):
+#     values.append(ece(preds = torch.tensor(test_pred[:,i]), target = torch.tensor(test_true[:,i])))
+#     # values_tta.append(ece.update(preds = torch.tensor(test_pred_tta[:,i]), target = torch.tensor(test_true_tta[:,i])))
+
+# fig, ax = ece.plot(values)
+# fig.savefig('results/fig.png')
+# print('printing values:')
+# print(values)
+# fig_tta, ax_tta = ece.plot(values_tta)
+    
 # # join class list to cxr results and cxr_results_tta
 # cxr_results = cxr_results.join(pd.DataFrame(class_list, columns = ['BCE_no_tta']))
 # cxr_results = cxr_results.join(pd.DataFrame(class_list_tta, columns = ['BCE_tta']))
@@ -84,34 +139,41 @@ print(class_list)
 # print(cxr_results_tta)
 
 
-cxr2 = cxr_results.stack().reset_index(level =1)
-cxr2.columns = ['Label', 'AUC_no_tta']
-print(cxr2)
-cxr2_tta = cxr_results_tta.stack().reset_index(level =1)
-cxr2_tta.columns = ['Label', 'AUC_tta']
-gph = pd.merge(cxr2, cxr2_tta, on='Label')
-gph2 = pd.DataFrame.join(gph, pd.DataFrame(np.array(class_list), columns = ['BCE_no_tta', 'BCE_tta']))
-print(gph2)
+# cxr2 = cxr_results.stack().reset_index(level =1)
+# cxr2.columns = ['Label', 'AUC_no_tta']
+# print(cxr2)
+# cxr2_tta = cxr_results_tta.stack().reset_index(level =1)
+# cxr2_tta.columns = ['Label', 'AUC_tta']
+# gph = pd.merge(cxr2, cxr2_tta, on='Label')
+# gph2 = pd.DataFrame.join(gph, pd.DataFrame(np.array(class_list), columns = ['BCE_no_tta', 'BCE_tta']))
+# print(gph2)
 
-# Remove "_auc" from the Label column
-gph2['Label'] = gph2['Label'].apply(lambda x: re.sub('_auc', '', x))
+# # Remove "_auc" from the Label column
+# gph2['Label'] = gph2['Label'].apply(lambda x: re.sub('_auc', '', x))
 
-# Round all columns to 3 decimal places
-gph2 = gph2.round(3)
+# # Round all columns to 3 decimal places
+# gph2 = gph2.round(3)
 
 # Save the modified dataframe to a CSV file
-gph2.to_csv('results/tta_results.csv', index=False)
+# gph2.to_csv('results/tta_results.csv', index=False)
 
 class_list = []
 for i in range(14):
     err_no_tta = bce(preds = torch.tensor(test_true[:,i]).float(), target = torch.tensor(test_true[:,i]))
     err_tta = bce(preds = torch.tensor(test_true[:,i]).float(), target = torch.tensor(test_true[:,i]))
+    # bce.update(preds=torch.tensor(test_true[:,i].f))
     print(err_no_tta, err_tta)
     class_list.append([ #cxr_labels[i],
                         err_no_tta, err_tta])
 
     # class_list_tta.append(err_tta)
 print(class_list)
+
+# fig, ax = bce.plot()
+
+# ax.set_fontsize(fs=20)
+# fig.savefig('plot.png')
+
 
 # from torchmetrics.classification.calibration_error import MulticlassCalibrationError
 # from torchmetrics.wrappers import ClasswiseWrapper
@@ -152,5 +214,28 @@ print(class_list)
 # plt.tight_layout()
 # plt.savefig('results/tta_results.png')
 # print(gph)
+# import matplotlib.pyplot as plt
+# from reliability_diagrams import *
+
+# plt.style.use("seaborn")
+# plt.rc("font", size=12)
+# plt.rc("axes", labelsize=12)
+# plt.rc("xtick", labelsize=12)
+# plt.rc("ytick", labelsize=12)
+# plt.rc("legend", fontsize=12)
+
+# plt.rc("axes", titlesize=16)
+# plt.rc("figure", titlesize=16)
+
+# title = "ECE of model with and without TTA"
+
+# y_pred = test_pred
+# y_true = test_true
+# y_conf = class_list[
+
+# fig = reliability_diagram(y_true, y_pred, y_conf, num_bins=10, draw_ece=True,
+#                           draw_bin_importance="alpha", draw_averages=True,
+#                           title=title, figsize=(6, 6), dpi=100, 
+#                           return_fig=True)
 
 
