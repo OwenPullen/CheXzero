@@ -85,7 +85,7 @@ print(class_list)
 import matplotlib.pyplot as plt
 from reliability_diagrams import reliability_diagrams
 
-pred_lab = np.array([])
+pred_lab = []
 for row in test_pred:
     threshold_row = []
     for num in row:
@@ -96,7 +96,7 @@ for row in test_pred:
 df_1 = pd.DataFrame({
     'true_label': test_true[:,0],
     'pred_label': pred_lab[:,0],
-    'confidence': test_pred[:.0],
+    'confidence': test_pred[:,0],
 })
 
 y_true = df_1.true_label.values
