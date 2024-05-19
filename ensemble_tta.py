@@ -45,7 +45,7 @@ predictions, y_pred_avg = ensemble_models(
     cxr_filepath=cxr_filepath,
     cxr_labels=cxr_labels,
     cxr_pair_template=cxr_pair_template,
-    cache_dir=cache_dir,
+    cache_dir=cache_dir.joinpath('no_tta/'),
 )
 
 test_pred = y_pred_avg
@@ -66,7 +66,7 @@ predictions_tta, y_pred_avg_tta = ensemble_models_tta(
     cxr_filepath=cxr_filepath, 
     cxr_labels=cxr_labels, 
     cxr_pair_template=cxr_pair_template, 
-    cache_dir=cache_dir,
+    cache_dir=cache_dir.joinpath('tta/'),
     transforms=transforms,
 )
 
