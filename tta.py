@@ -61,47 +61,72 @@ print(cxr_results_tta)
 
 from torchmetrics.classification import BinaryCalibrationError
 import re
+from sklearn.metrics import matthews_corrcoef
 
 bce = BinaryCalibrationError(norm = 'l1')
-class_list = []
-class_list_tta = []
-values = []
+# class_list = []
+# class_list_tta = []
+# values = []
+# opt_thresh = []
+# j_list = []
+# best_thresholds = []
+# thresholds_mcc = np.linspace(0, 1, 100)
+# preds_binaryels = test_pred[:,0]
+# confidences = np.max(test_pred[:0], axis = 1)
+# for i in range(14):
+#     err_no_tta = bce(preds = torch.tensor(test_pred[:,i]), target = torch.tensor(test_true[:,i]))
+#     err_tta = bce(preds = torch.tensor(test_pred_tta[:,i]), target = torch.tensor(test_true_tta[:,i]))
+#     print(err_no_tta, err_tta)
+#     class_list.append(err_no_tta)
+#     class_list_tta.append(err_tta)
 
-pred_labels = test_pred[:,0]
-confidences = np.max(test_pred[:0], axis = 1)
-for i in range(14):
-    err_no_tta = bce(preds = torch.tensor(test_pred[:,i]), target = torch.tensor(test_true[:,i]))
-    err_tta = bce(preds = torch.tensor(test_pred_tta[:,i]), target = torch.tensor(test_true_tta[:,i]))
-    print(err_no_tta, err_tta)
-    class_list.append(err_no_tta)
-    class_list_tta.append(err_tta)
+# print(opt_thresh)
+# print(best_thresholds)
+# print(cxr_labels)
+# thresholds_dict = dict(zip(cxr_labels, best_thresholds))
+# print(thresholds_dict)
+# np.save('data/thresholds_test.npy', thresholds_dict)
+# thresholds_df = pd.DataFrame(thresholds_dict.items(), columns=['Label', 'Threshold'])
+# thresholds_df.to_csv('data/thresholds_test.csv', index=False)
 
-    # class_list_tta.append(err_tta)
+# exit()
+#     # class_list_tta.append(err_tta)
 
-fig, ax = bce.plot(class_list)
-fig.savefig('results/fig.png')
-print(class_list)
+# print(opt_thresh)
+# print(j_list)
+# print(np.mean(opt_thresh))
+# print(np.mean(j_list))
+# fig, ax = bce.plot(class_list)
+# fig.savefig('results/fig.png')
+# print(class_list)
 
 import matplotlib.pyplot as plt
 from reliability_diagrams import reliability_diagrams
+thresholds_dict = np.load('data/thresholds_pr.npy', allow_pickle=True).item()
+print(thresholds_dict)
+# Extract values from dictionary
+thresholds_values = list(thresholds_dict.values())
+print(thresholds_values)
+preds = []
+conf = []
 
-pred_lab = []
-for row in test_pred:
-    threshold_row = []
-    for num in row:
-        if num > 0.5: threshold_row.append(1)
-        else: threshold_row.append(0)
-    pred_lab.append(threshold_row)
 
-df_1 = pd.DataFrame({
-    'true_label': test_true[:,0],
-    'pred_label': pred_lab[:,0],
-    'confidence': test_pred[:,0],
-})
+preds_binary = np.zeros_like(test_pred)
+conf = np.zeros_like(test_pred)
+for i in range(14):
+    preds_binary[:, i] = (test_pred[:, i] > thresholds_values[i]).astype(int)
+    confidence = np.copy(test_pred[:, i])
+    confidence[preds_binary[:, i] == 0] = 1 - confidence[preds_binary[:, i] == 0]
+    conf[:, i] = confidence
+# df_1 = pd.DataFrame({
+#     'true_label': test_true[:,0],
+#     'preds_binaryel': preds_binary[:,0],
+#     'confidence': test_pred[:,0],
+# })
 
-y_true = df_1.true_label.values
-y_pred = df_1.pred_label.values
-y_conf = df_1.confidence.values
+# y_true = df_1.true_label.values
+# y_pred = df_1.preds_binaryel.values
+# y_conf = df_1.confidence.values
 
 plt.style.use("seaborn")
 plt.rc("font", size=12)
@@ -110,13 +135,37 @@ plt.rc("xtick", labelsize=12)
 plt.rc("ytick", labelsize=12)
 plt.rc("legend", fontsize=12)
 
-title = 'Plot'
-fig = reliability_diagrams(y_true, y_pred, y_conf, num_bins=10, draw_ece=True,
-                           draw_bin_importance="alpha", draw_averages=True,
-                           title=title, figsize=(6,6), dpi=100,
-                           return_fig=True
-)
-fig.savefig('results/reliability_diagram.png')
+import reliability_diagrams as rd
+
+dict = {}
+list_gph = []
+for i in range(14):
+    dict_i = {
+    "true_labels" : test_true[:,i],
+    "pred_labels" : preds_binary[:,i],
+    "confidences" : test_pred[:,i]
+    }
+    dict.update({cxr_labels[i]: dict_i})
+    gph = rd.reliability_diagram(true_labels=test_true[:,i],
+                                 pred_labels=preds_binary[:,i],
+                                 confidences=test_pred[:,i],
+                                 title=cxr_labels[i],
+                                 num_bins=20,
+                                 dpi = 500,
+                                 return_fig=True)
+    gph.savefig(f"results/plots/reliability_diagram_3_{cxr_labels[i]}")
+    list_gph.append(gph)
+
+mp_gph = rd.reliability_diagrams(dict, num_cols = 7, num_rows = 2, num_bins=20, draw_bin_importance=True, return_fig=True)
+mp_gph.savefig(f'results/plots/multipanel_reliability_diagram3.png')
+
+# title = 'Plot'
+# fig = reliability_diagrams(y_true, y_pred, y_conf, num_bins=10, draw_ece=True,
+#                            draw_bin_importance="alpha", draw_averages=True,
+#                            title=title, figsize=(6,6), dpi=100,
+#                            return_fig=True
+# )
+# fig.savefig('results/reliability_diagram.png')
 # ece = BinaryCalibrationError(norm='l1')
 # values = []
 # values_tta = []
@@ -237,5 +286,8 @@ print(class_list)
 #                           draw_bin_importance="alpha", draw_averages=True,
 #                           title=title, figsize=(6, 6), dpi=100, 
 #                           return_fig=True)
-
+from eval import plot_pr, plot_roc
+for i in range(14):
+    plot_roc(test_true[:,i], preds_binary[:,i], cxr_labels[i], plot=True)
+    plot_pr(test_true[:,i], preds_binary[:,i], cxr_labels[i], plot=True)
 
