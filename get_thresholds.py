@@ -127,8 +127,32 @@ print(opt_thresh)
 print(opt_thresh_pr)
 
   
-# thresholds_dict = dict(zip(cxr_labels, best_thresholds))
-# print(thresholds_dict)
-# np.save('data/thresholds.npy', thresholds_dict)
-# thresholds_df = pd.DataFrame(thresholds_dict.items(), columns=['Label', 'Threshold'])
-# thresholds_df.to_csv('data/thresholds.csv', index=False)
+thresholds_dict = dict(zip(cxr_labels, best_thresholds))
+print(thresholds_dict)
+np.save('data/thresholds.npy', thresholds_dict)
+thresholds_df = pd.DataFrame(thresholds_dict.items(), columns=['Label', 'Threshold'])
+thresholds_df.to_csv('data/thresholds.csv', index=False)
+threshold_pr_dict = dict(zip(cxr_labels, opt_thresh_pr))
+print(threshold_pr_dict)
+np.save('data/thresholds_pr.npy', threshold_pr_dict)
+thresholds_pr_df = pd.DataFrame(threshold_pr_dict.items(), columns=['Label', 'Threshold'])
+thresholds_pr_df.to_csv('data/thresholds_pr.csv', index=False)
+
+thresholds_dict = np.load('data/thresholds_pr.npy', allow_pickle=True).item()
+print(thresholds_dict)
+# Extract values from dictionary
+thresholds_values = list(thresholds_dict.values())
+print(thresholds_values)
+
+
+from metrics import get_best_p_vals
+
+# Get best p values
+p_values = get_best_p_vals(test_pred, test_true, cxr_labels)
+
+print("Thresholds:")
+print(p_values)
+np.save('data/threshold_mcc_values.npy', p_values)
+# Extract values from dictionary
+thresholds_mcc_df =  pd.DataFrame(p_values.items(), columns=['Label', 'Threshold'])
+thresholds_mcc_df.to_csv('data/threshold_mcc_values.csv', index=False)
