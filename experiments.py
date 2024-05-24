@@ -41,7 +41,7 @@ for subdir, dirs, files in os.walk(model_dir):
         full_dir = os.path.join(subdir, file)
         model_paths.append(full_dir)
 
-thresholds_dict = np.load('data/thresholds_pr.npy', allow_pickle=True).item()
+thresholds_dict = np.load('data/threshold_mcc_values.npy', allow_pickle=True).item()
 print(thresholds_dict)
 # Extract values from dictionary
 thresholds_values = list(thresholds_dict.values())
@@ -92,8 +92,8 @@ get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Bes
 # get_reliability_diagrams_mp(test_true_tta, preds_binary, conf, cxr_labels, 'Best Single Model TTA')
 plot_roc_mp(test_true, preds_binary, cxr_labels, 'Best Single Model')
 plot_roc_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Best Single Model TTA')
-plot_pr_mp(test_true, preds_binary, cxr_labels, 'Best Single Model')
-plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Best Single Model TTA')
+# plot_pr_mp(test_true, preds_binary, cxr_labels, 'Best Single Model')
+# plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Best Single Model TTA')
 
 
 predictions, y_pred_avg = ensemble_models(
@@ -131,8 +131,8 @@ get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Ens
 # get_reliability_diagrams_mp(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Ensemble Model TTA')
 plot_roc_mp(test_true, preds_binary, cxr_labels, 'Ensemble Model')
 plot_roc_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
-plot_pr_mp(test_true, preds_binary, cxr_labels, 'Ensemble Model')
-plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
+# plot_pr_mp(test_true, preds_binary, cxr_labels, 'Ensemble Model')
+# plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
 
 
 # Stacked bar graph for AUC without TTA and with TTA
@@ -160,12 +160,12 @@ plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
 # ax2.set_ylabel('AUC')
 # ax2.set_title('AUC Comparison: Ensemble Models')
 
-# Add legend
-ax1.legend()
-ax2.legend()
+# # Add legend
+# ax1.legend()
+# ax2.legend()
 
-# Adjust spacing between subplots
-plt.subplots_adjust(hspace=0.5)
+# # Adjust spacing between subplots
+# plt.subplots_adjust(hspace=0.5)
 
-# Show the plot
-plt.savefig('results/plots/AUC_comparison.png')
+# # Show the plot
+# plt.savefig('results/plots/AUC_comparison.png')
