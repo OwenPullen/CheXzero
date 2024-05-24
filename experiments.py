@@ -90,8 +90,8 @@ get_reliability_diagrams(test_true, preds_binary, conf, cxr_labels, 'Best Single
 get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Best Single Model TTA')
 # get_reliability_diagrams_mp(test_true, preds_binary, conf, cxr_labels, 'Best Single Model')
 # get_reliability_diagrams_mp(test_true_tta, preds_binary, conf, cxr_labels, 'Best Single Model TTA')
-plot_roc_mp(test_true, preds_binary, cxr_labels, 'Best Single Model')
-plot_roc_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Best Single Model TTA')
+plot_roc_mp(test_true, test_pred, cxr_labels, 'Best Single Model')
+plot_roc_mp(test_true_tta, test_pred_tta, cxr_labels, 'Best Single Model TTA')
 # plot_pr_mp(test_true, preds_binary, cxr_labels, 'Best Single Model')
 # plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Best Single Model TTA')
 
@@ -104,10 +104,10 @@ predictions, y_pred_avg = ensemble_models(
     cache_dir=cache_dir.joinpath('no_tta/'),
 )
 
-test_pred = y_pred_avg
+test_pred_en = y_pred_avg
 # test_pred = torch.tensor(test_pred); test_true = torch.tensor(test_true)
 # evaluate model
-cxr_results_ens: pd.DataFrame = eval.evaluate(test_pred, test_true, cxr_labels) # eval on full test datset
+cxr_results_ens: pd.DataFrame = eval.evaluate(test_pred_en, test_true, cxr_labels) # eval on full test datset
 
 # Ensemble model prediction with TTA
 predictions_tta, y_pred_avg_tta = ensemble_models_tta(
@@ -119,18 +119,20 @@ predictions_tta, y_pred_avg_tta = ensemble_models_tta(
     transforms=transforms,
 )
 
-cxr_results_ens_tta: pd.DataFrame = eval.evaluate(test_pred_tta, test_true, cxr_labels) # eval on full test datset
+test_pred_tta_en = y_pred_avg_tta
+
+cxr_results_ens_tta: pd.DataFrame = eval.evaluate(test_pred_tta_en, test_true, cxr_labels) # eval on full test datset
 
 
-preds_binary, conf = get_binary_preds(test_pred, thresholds_values)
-preds_binary_tta, conf_tta = get_binary_preds(test_pred_tta, thresholds_values)
+preds_binary_en, conf = get_binary_preds(test_pred_en, thresholds_values)
+preds_binary_tta_en, conf_tta_en = get_binary_preds(test_pred_tta_en, thresholds_values)
 
-get_reliability_diagrams(test_true, preds_binary, conf, cxr_labels, 'Ensemble Model')
-get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Ensemble Model TTA')
+get_reliability_diagrams(test_true, preds_binary_en, conf, cxr_labels, 'Ensemble Model')
+get_reliability_diagrams(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA')
 # get_reliability_diagrams_mp(test_true, preds_binary, conf, cxr_labels, 'Ensemble Model')
-# get_reliability_diagrams_mp(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Ensemble Model TTA')
-plot_roc_mp(test_true, preds_binary, cxr_labels, 'Ensemble Model')
-plot_roc_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
+# get_reliability_diagrams_mp(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA')
+plot_roc_mp(test_true, test_pred_en, cxr_labels, 'Ensemble Model')
+plot_roc_mp(test_true_tta, test_pred_tta_en, cxr_labels, 'Ensemble Model TTA')
 # plot_pr_mp(test_true, preds_binary, cxr_labels, 'Ensemble Model')
 # plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
 
