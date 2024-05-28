@@ -11,3 +11,6 @@ combined_results.csv
 *.vscode
 *.ipynb_checkpoints
 results/*
+*.png
+*.jpg
+*.jpeg
