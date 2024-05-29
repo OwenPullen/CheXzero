@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def compute_calibration(true_labels, pred_labels, confidences, num_bins=10):
+def compute_calibration(true_labels, pred_labels, confidences, num_bins=10, pos_only=False):
     """Collects predictions into bins used to draw a reliability diagram.
 
     Arguments:
@@ -31,6 +31,13 @@ def compute_calibration(true_labels, pred_labels, confidences, num_bins=10):
     assert(len(confidences) == len(pred_labels))
     assert(len(confidences) == len(true_labels))
     assert(num_bins > 0)
+
+    if pos_only:
+        # Remove NaN values
+        valid_indices = ~np.isnan(true_labels) & ~np.isnan(pred_labels) & ~np.isnan(confidences)
+        true_labels = true_labels[valid_indices]
+        pred_labels = pred_labels[valid_indices]
+        confidences = confidences[valid_indices]
 
     bin_size = 1.0 / num_bins
     bins = np.linspace(0.0, 1.0, num_bins + 1)
@@ -184,7 +191,7 @@ def _reliability_diagram_combined(bin_data,
 def reliability_diagram(true_labels, pred_labels, confidences, num_bins=10,
                         draw_ece=True, draw_bin_importance=False, 
                         draw_averages=True, title="Reliability Diagram", 
-                        figsize=(6, 6), dpi=72, return_fig=False):
+                        figsize=(6, 6), dpi=72, return_fig=False, pos_only=False):
     """Draws a reliability diagram and confidence histogram in a single plot.
     
     First, the model's predictions are divided up into bins based on their
@@ -225,7 +232,7 @@ def reliability_diagram(true_labels, pred_labels, confidences, num_bins=10,
         dpi: setting for matplotlib
         return_fig: if True, returns the matplotlib Figure object
     """
-    bin_data = compute_calibration(true_labels, pred_labels, confidences, num_bins)
+    bin_data = compute_calibration(true_labels, pred_labels, confidences, num_bins, pos_only)
     return _reliability_diagram_combined(bin_data, draw_ece, draw_bin_importance,
                                          draw_averages, title, figsize=figsize, 
                                          dpi=dpi, return_fig=return_fig)
