@@ -57,14 +57,14 @@ test_pred = y_pred
 test_true = zero_shot.make_true_labels(cxr_true_labels_path=cxr_true_labels_path, cxr_labels=cxr_labels)
 cxr_results: pd.DataFrame = zero_shot.evaluate(test_pred, test_true, cxr_labels) # eval on full test datset
 
-# run the TTA
-
+# define the TTA
 transforms = monai.transforms.compose.Compose([
-    monai.transforms.RandRotated(keys ='image', prob=0.2, range_x=(-0.5,0.5), range_y=(-0.5,0.5), keep_size=True),
-    monai.transforms.RandGaussianNoised(keys='image', prob=0.2),
-    monai.transforms.RandFlipd(keys='image', spatial_axis=1, prob=0.2),
-    monai.transforms.RandAffined(keys='image', prob = 0.2, rotate_range=(0.5,0.5), shear_range=(0.25,0.25))
+    monai.transforms.RandRotated(keys ='image', prob=0.05, range_x=(-0.5,0.5), range_y=(-0.5,0.5), keep_size=True),
+    monai.transforms.RandGaussianNoised(keys='image', prob=0.05),
+    monai.transforms.RandFlipd(keys='image', spatial_axis=1, prob=0.05),
+    monai.transforms.RandAffined(keys='image', prob = 0.05, rotate_range=(0.5,0.5), shear_range=(0.25,0.25))
 ])
+
 transforms = monai.transforms.RandomOrder(transforms)
 verbose = False
 y_pred_tta = run_softmax_eval(model, loader, cxr_labels, cxr_pair_template, transforms=transforms, verbose=verbose)
@@ -84,17 +84,27 @@ print(cxr_results)
 print(cxr_results_tta)
 
 # from r_diags import get_reliability_diagrams_mp
-preds_binary, conf = get_binary_preds(test_pred, thresholds_values)
-preds_binary_tta, conf_tta = get_binary_preds(test_pred_tta, thresholds_values)
-get_reliability_diagrams(test_true, preds_binary, conf, cxr_labels, 'Best Single Model')
-get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Best Single Model TTA')
-# get_reliability_diagrams_mp(test_true, preds_binary, conf, cxr_labels, 'Best Single Model')
-# get_reliability_diagrams_mp(test_true_tta, preds_binary, conf, cxr_labels, 'Best Single Model TTA')
-plot_roc_mp(test_true, test_pred, cxr_labels, 'Best Single Model')
-plot_roc_mp(test_true_tta, test_pred_tta, cxr_labels, 'Best Single Model TTA')
-# plot_pr_mp(test_true, preds_binary, cxr_labels, 'Best Single Model')
-# plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Best Single Model TTA')
 
+preds_binary, conf = get_binary_preds(test_pred, thresholds_values)
+
+preds_binary_tta, conf_tta = get_binary_preds(test_pred_tta, thresholds_values)
+# filter positives and get confidence values
+positive_preds, true_positives, conf = filter_positives(test_pred, test_true, thresholds_values)
+positive_preds_tta, true_positives_tta, conf_tta = filter_positives(test_pred, test_true, thresholds_values)
+
+# Get reliability diagrams
+# get_reliability_diagrams(test_true, preds_binary, conf, cxr_labels, 'Best Single Model', 'single_model_all')
+# get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Best Single Model TTA', 'single_model_tta_all')
+
+# plot reliability diagrams - postive predictions
+# get_reliability_diagrams(true_positives, positive_preds, conf, cxr_labels, 'Best Single Model Positives', 'single_model_positives', pos_only=True)
+# get_reliability_diagrams(true_positives, positive_preds_tta, conf_tta, cxr_labels, 'Best Single Model TTA Positives', 'single_model_tta_positives', pos_only=True)
+
+# Get ROC curves
+# plot_roc_mp(test_true, test_pred, cxr_labels, 'Best Single Model', 'roc')
+# plot_roc_mp(test_true_tta, test_pred_tta, cxr_labels, 'Best Single Model TTA', 'roc')
+# get_roc_plots(test_true, test_pred, cxr_labels, 'single_model')
+# get_roc_plots(test_true, test_pred_tta, cxr_labels, 'single_model_tta')
 
 predictions, y_pred_avg = ensemble_models(
     model_paths=model_paths,
@@ -127,47 +137,215 @@ cxr_results_ens_tta: pd.DataFrame = eval.evaluate(test_pred_tta_en, test_true, c
 preds_binary_en, conf = get_binary_preds(test_pred_en, thresholds_values)
 preds_binary_tta_en, conf_tta_en = get_binary_preds(test_pred_tta_en, thresholds_values)
 
-get_reliability_diagrams(test_true, preds_binary_en, conf, cxr_labels, 'Ensemble Model')
-get_reliability_diagrams(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA')
+# Extract positive preds and confidence values
+positive_preds_en, true_positives_en, conf_en = filter_positives(test_pred_en, test_true, thresholds_values)
+positive_preds_tta_en, true_positives_tta_en, conf_tta_en = filter_positives(test_pred_tta_en, test_true, thresholds_values)
+
+# Plot reliability diagrams
+# get_reliability_diagrams(test_true, preds_binary_en, conf, cxr_labels, 'Ensemble Model', 'ensemble_model_all')
+# get_reliability_diagrams(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA', 'ensemble_model_tta_all')
+
+# plot reliability diagrams - postive predictions
+# get_reliability_diagrams(true_positives_en, positive_preds_en, conf_en, cxr_labels, 'Ensemble Model Positives', 'ensemble_model_positives', pos_only=True)
+# get_reliability_diagrams(true_positives_tta_en, positive_preds_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA Positives', 'ensemble_model_tta_positives',pos_only=True)
+
 # get_reliability_diagrams_mp(test_true, preds_binary, conf, cxr_labels, 'Ensemble Model')
 # get_reliability_diagrams_mp(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA')
-plot_roc_mp(test_true, test_pred_en, cxr_labels, 'Ensemble Model')
-plot_roc_mp(test_true_tta, test_pred_tta_en, cxr_labels, 'Ensemble Model TTA')
-# plot_pr_mp(test_true, preds_binary, cxr_labels, 'Ensemble Model')
-# plot_pr_mp(test_true_tta, preds_binary_tta, cxr_labels, 'Ensemble Model TTA')
+
+# Get ROC curves
+# plot_roc_mp(test_true, test_pred_en, cxr_labels, 'Ensemble Model', 'roc')
+# plot_roc_mp(test_true, test_pred_tta_en, cxr_labels, 'Ensemble Model TTA', 'roc')
+# get_roc_plots(test_true, test_pred_en, cxr_labels, 'ensemble_model')
+# get_roc_plots(test_true, test_pred_tta_en, cxr_labels, 'ensemble_model_tta')
+
+# Create a multipanel box plot of the AUC Values for each experiment
+plt.figure(figsize=(10, 6))
+# Reshape the dataframe into long format
+cxr_results_long = cxr_results.melt(var_name='Class', value_name='AUC').assign(Experiment='Single Model')
+cxr_results_tta_long = cxr_results_tta.melt(var_name='Class', value_name='AUC').assign(Experiment='Single Model TTA')
+cxr_results_ens_long = cxr_results_ens.melt(var_name='Class', value_name='AUC').assign(Experiment='Ensemble Model')
+cxr_results_ens_tta_long = cxr_results_ens_tta.melt(var_name='Class', value_name='AUC').assign(Experiment='Ensemble Model TTA')
+
+# Combine the dataframes
+combined_results = pd.concat([cxr_results_long, cxr_results_tta_long, cxr_results_ens_long, cxr_results_ens_tta_long])
+# Add a column for the experiment
+import seaborn as sns
+import re
+from sklearn.metrics import roc_curve, auc
+import numpy as np
+# Remove "_auc" from x-axis labels
+combined_results['Class'] = combined_results['Class'].apply(lambda x: re.sub('_auc', '', x))
+
+# Plot the dotplot
+plt.figure(figsize=(10, 6))
+sns.stripplot(data=combined_results, x='AUC', y='Class', hue='Experiment', dodge=True, palette='Set1', marker='s')
+plt.xlabel('AUC Value')
+plt.title('AUC Values for Different Experiments')
+plt.legend(title='Experiment', borderaxespad=0.5, frameon=True, edgecolor='black')
+# plt.xticks(rotation=90)  # Rotate x-axis labels vertically
+plt.tight_layout()  # Adjust the layout to prevent labels from being cut off
+plt.savefig('results/plots/AUC/AUC_Dotplot.png')
 
 
-# Stacked bar graph for AUC without TTA and with TTA
-# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
 
-# # AUC values for without TTA
 
-# auc_no_tta = pd.melt(pd.DataFrame(cxr_results, columns=cxr_labels))
-# ax1.bar(cxr_labels, auc_no_tta, label='Without TTA')
+import matplotlib.pyplot as plt
 
-# # AUC values for with TTA
-# auc_with_tta = pd.melt(pd.DataFrame(cxr_results_tta, columns=cxr_labels))
-# ax1.bar(cxr_labels, auc_with_tta, bottom=auc_no_tta, label='With TTA')
+# Extract the AUC values for each experiment
+single_model_auc = cxr_results_long['AUC'].values
+single_model_tta_auc = cxr_results_tta_long['AUC'].values
+ensemble_model_auc = cxr_results_ens_long['AUC'].values
+ensemble_model_tta_auc = cxr_results_ens_tta_long['AUC'].values
 
-# ax1.set_ylabel('AUC')
-# ax1.set_title('AUC Comparison: Single Model')
+# Create a list of colors for each experiment
+colors = ['green', 'orange', 'red', 'blue']
+experiment_labels = ['Single Model', 'Single Model TTA', 'Ensemble Model', 'Ensemble Model TTA']
+# Set the number of classes
+num_classes = len(cxr_labels)
 
-# # Stacked bar graph for AUC of ensemble models without TTA and with TTA
-# # AUC values for without TTA
-# auc_no_tta_ens = pd.melt(pd.DataFrame(cxr_results_ens, columns=cxr_labels))
-# ax2.bar(cxr_labels, auc_no_tta_ens, label='Without TTA')
-# auc_with_tta_ens = pd.melt(pd.DataFrame(cxr_results_ens_tta, columns=cxr_labels))
-# ax2.bar(cxr_labels, auc_with_tta_ens, bottom=auc_with_tta_ens, label='With TTA')
+# Create a list of angles for each class
+angles = np.linspace(0, 2 * np.pi, num_classes, endpoint=False).tolist()
+angles += angles[:1]
 
-# ax2.set_ylabel('AUC')
-# ax2.set_title('AUC Comparison: Ensemble Models')
+# Create a radar plot
+fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={'projection': 'polar'})
+ax.set_theta_offset(np.pi / 2)
+ax.set_theta_direction(-1)
+ax.spines['polar'].set_visible(False)
+ax.set_yticklabels([])
+ax.set_xticks(angles[:-1])
+ax.set_xticklabels(cxr_labels, fontsize=9)
+plt.yticks([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],["0.1","0.2","0.3","0.4","0.5","0.6","0.7","0.8","0.9","1.0"], color="black", size=7)
+plt.ylim(0,1)
 
-# # Add legend
-# ax1.legend()
-# ax2.legend()
+# Plot the AUC values for each experiment
+for i, (auc_values, color) in enumerate(zip([single_model_auc, single_model_tta_auc, ensemble_model_auc, ensemble_model_tta_auc], colors)):
+    values = np.concatenate((auc_values, [auc_values[0]]))
+    ax.fill(angles, values, color=color, alpha=0.5, label=f'{experiment_labels[i]}')
+    ax.plot(angles, values, color=color, linewidth=2, linestyle='solid')
 
-# # Adjust spacing between subplots
-# plt.subplots_adjust(hspace=0.5)
+# Add a scale
+ax.set_rlabel_position(0)
+ax.grid(True)
 
-# # Show the plot
-# plt.savefig('results/plots/AUC_comparison.png')
+# Adjust the layout to prevent labels from being cut off
+plt.tight_layout()
+
+# Add a legend
+ax.legend(loc='upper center', bbox_to_anchor=(0.53, 1.15), ncol=4)
+
+# Show the plot
+plt.savefig('results/plots/AUC/AUC_Radar.png')
+
+chexero_list = ['Atelectasis','Cardiomegaly','Consolidation', 'Edema', 'Pleural Effusion']
+
+# Create multipanel ROC curves of the AUC Values for each experiment matching chexzero paper
+#     roc_auc_en = auc(fpr_en, tpr_en)
+#     plt.plot(fpr_en, tpr_en, label='Ensemble Model (AUC = %0.2f)' % roc_auc_en)
+#     plt.grid(False)  # Remove grid lines
+     
+#     fpr_tta_en, tpr_tta_en, _ = roc_curve(test_true[:, i], test_pred_tta_en[:, i])
+#     roc_auc_tta_en = auc(fpr_tta_en, tpr_tta_en)
+#     plt.plot(fpr_tta_en, tpr_tta_en, label='Ensemble Model TTA (AUC = %0.2f)' % roc_auc_tta_en)
+    
+#     plt.title(label)
+#     plt.legend(loc='lower right')
+# plt.tight_layout()
+# plt.savefig('results/plots/AUC/ROC_Multipanel.png')
+fpr_single = dict()
+tpr_single = dict()
+fpr_single_tta = dict()
+tpr_single_tta = dict()
+fpr_ensemble = dict()
+tpr_ensemble = dict()
+fpr_ensemble_tta = dict()
+tpr_ensemble_tta = dict()
+roc_auc_single = dict()
+roc_auc_single_tta = dict()
+roc_auc_ensemble = dict()
+roc_auc_ensemble_tta = dict()
+
+
+plt.figure(figsize=(15, 10))
+for i, label in enumerate(chexero_list):
+    # Single Model
+    fpr_single[i], tpr_single[i], _ = roc_curve(test_true[:, i], test_pred[:, i])
+    roc_auc_single[i] = auc(fpr_single[i], tpr_single[i])
+        
+    # Single Model TTA
+    fpr_single_tta[i], tpr_single_tta[i], _ = roc_curve(test_true_tta[:, i], test_pred_tta[:, i])
+    roc_auc_single_tta[i] = auc(fpr_single_tta[i], tpr_single_tta[i])
+    
+    # Ensemble Model
+    fpr_ensemble[i], tpr_ensemble[i], _ = roc_curve(test_true[:, i], test_pred_en[:, i])
+    roc_auc_ensemble[i] = auc(fpr_ensemble[i], tpr_ensemble[i])
+    
+    # Ensemble Model TTA
+    fpr_ensemble_tta[i], tpr_ensemble_tta[i], _ = roc_curve(test_true[:, i], test_pred_tta_en[:, i])
+    roc_auc_ensemble_tta[i] = auc(fpr_ensemble_tta[i], tpr_ensemble_tta[i])
+
+
+plt.figure(figsize=(15, 10), dpi=500)  # Increase the dpi for higher resolution
+plt.subplot(2, 2, 1).set_facecolor('white')
+for i, label in enumerate(chexero_list):
+    plt.plot(fpr_single[i], tpr_single[i], label=f'{label} (AUC = {roc_auc_single[i]:.2f})')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Single Model')
+legend1 = plt.legend(borderaxespad=0.5, frameon=True, edgecolor='black')
+legend1.get_frame().set_facecolor('white')
+legend1.get_frame().set_linewidth(1)
+plt.grid(False)
+
+plt.subplot(2, 2, 2).set_facecolor('white')
+for i, label in enumerate(chexero_list):
+    plt.plot(fpr_single_tta[i], tpr_single_tta[i], label=f'{label} (AUC = {roc_auc_single_tta[i]:.2f})')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Single Model TTA')
+legend2 = plt.legend(borderaxespad=0.5, frameon=True, edgecolor='black')
+legend2.get_frame().set_facecolor('white')
+legend2.get_frame().set_linewidth(1)
+plt.grid(False)
+
+
+plt.subplot(2, 2, 3).set_facecolor('white')
+for i, label in enumerate(chexero_list):
+    plt.plot(fpr_ensemble[i], tpr_ensemble[i], label=f'{label} (AUC = {roc_auc_ensemble[i]:.2f})')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Ensemble Model')
+legend3 = plt.legend(borderaxespad=0.5, frameon=True, edgecolor='black')
+legend3.get_frame().set_facecolor('white')
+legend3.get_frame().set_linewidth(1)
+plt.grid(False)  # Set the background color to white to match the report she
+
+plt.subplot(2, 2, 4).set_facecolor('white')
+for i, label in enumerate(chexero_list):
+    plt.plot(fpr_ensemble_tta[i], tpr_ensemble_tta[i], label=f'{label} (AUC = {roc_auc_ensemble_tta[i]:.2f})')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Ensemble Model TTA')
+plt.grid(False)
+legend4 = plt.legend(borderaxespad=0.5, frameon=True, edgecolor='black')
+legend4.get_frame().set_facecolor('white')
+legend4.get_frame().set_linewidth(1)
+  # Set the background color to white to match the report she
+
+plt.tight_layout()
+
+
+plt.savefig('results/plots/report_plots/roc/ROC_Multipanel2.png', dpi=500)  # Increase the dpi for higher resolution
+
+# Create a DataFrame with the AUC results
+auc_results = pd.DataFrame({
+    'Class': cxr_labels,
+    'Single Model': cxr_results_long[cxr_results_long['Experiment'] == 'Single Model']['AUC'].round(3),
+    'Single Model TTA': cxr_results_tta_long[cxr_results_tta_long['Experiment'] == 'Single Model TTA']['AUC'].round(3),
+    'Ensemble Model': cxr_results_ens_long[cxr_results_ens_long['Experiment'] == 'Ensemble Model']['AUC'].round(3),
+    'Ensemble Model TTA': cxr_results_ens_tta_long[cxr_results_ens_tta_long['Experiment'] == 'Ensemble Model TTA']['AUC'].round(3)
+})
+
+# Save the DataFrame as a CSV file
+auc_results.to_csv('/home/kell7033/git/CheXzero/auc_results.csv', index=False)
+
