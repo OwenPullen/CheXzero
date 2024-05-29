@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from eval import plot_pr, plot_roc
 from sklearn.metrics import roc_curve, auc, matthews_corrcoef, precision_recall_curve
 
-def get_reliability_diagrams(test_true, preds_binary, test_pred, cxr_labels, model_label):
+def get_reliability_diagrams(test_true, preds_binary, test_pred, cxr_labels, model_label, path, pos_only=False):
     plt.style.use("seaborn")
     plt.rc("font", size=12)
     plt.rc("axes", labelsize=12)
@@ -28,21 +28,21 @@ def get_reliability_diagrams(test_true, preds_binary, test_pred, cxr_labels, mod
                                     title=cxr_labels[i],
                                     num_bins=20,
                                     dpi = 500,
-                                    return_fig=True)
-        gph.savefig(f"results/plots/reliability_diagram_3_{model_label}_{cxr_labels[i]}")
+                                    return_fig=True,
+                                    pos_only=pos_only)
+        gph.savefig(f"results/plots/{path}/reliability_diagram_3_{model_label}_{cxr_labels[i]}")
         list_gph.append(gph)
         
     plt.title(f"Reliability Diagram {model_label}")
     mp_gph = rd.reliability_diagrams(dict, num_cols = 7, num_rows = 2, num_bins=20, draw_bin_importance=True, return_fig=True)
-    mp_gph.savefig(f'results/plots/multipanel_reliability_diagram3_{model_label}.png')
+    mp_gph.savefig(f'results/plots/multipanel_reliability_diagram_{model_label}.png')
 
-def get_roc_pr_plots(test_true, preds_binary, cxr_labels, ):
+def get_roc_plots(test_true, preds_binary, cxr_labels, path):
     for i in range(preds_binary.shape[1]):
-        plot_roc(test_true[:,i], preds_binary[:,i], cxr_labels[i], plot=True)
-        plot_pr(test_true[:,i], preds_binary[:,i], cxr_labels[i], plot=True) 
+        plot_roc(y_true=test_true[:,i], y_pred=preds_binary[:,i], roc_name=path+'/'+cxr_labels[i], plot=True)
+        
 
-
-def plot_roc_mp(test_true, preds_binary, cxr_labels, model_label, plot=True):
+def plot_roc_mp(test_true, preds_binary, cxr_labels, model_label, path ,plot=True):
     plt.figure(figsize=(14, 10))
     for i in range(preds_binary.shape[1]):
         fpr, tpr, thresholds = roc_curve(test_true[:, i], preds_binary[:, i])
@@ -58,7 +58,7 @@ def plot_roc_mp(test_true, preds_binary, cxr_labels, model_label, plot=True):
             plt.xlabel('False Positive Rate')
             plt.title(f'{model_label} {cxr_labels[i]}')
     plt.tight_layout()
-    plt.savefig(f'results/plots/multipanel_roc_curve_{model_label}.png')
+    plt.savefig(f'results/plots/{path}/multipanel_roc_curve_{model_label}.png')
 
 def plot_pr_mp(test_true, preds_binary, cxr_labels, model_label, plot=True):
     plt.figure(figsize=(14, 10))
