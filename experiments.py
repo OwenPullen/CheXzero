@@ -89,16 +89,16 @@ preds_binary, conf = get_binary_preds(test_pred, thresholds_values)
 
 preds_binary_tta, conf_tta = get_binary_preds(test_pred_tta, thresholds_values)
 # filter positives and get confidence values
-positive_preds, true_positives, conf = filter_positives(test_pred, test_true, thresholds_values)
-positive_preds_tta, true_positives_tta, conf_tta = filter_positives(test_pred, test_true, thresholds_values)
+positive_preds, true_positives, conf_pos = filter_positives(test_pred, test_true, thresholds_values)
+positive_preds_tta, true_positives_tta, conf_tta_pos = filter_positives(test_pred, test_true, thresholds_values)
 
 # Get reliability diagrams
 # get_reliability_diagrams(test_true, preds_binary, conf, cxr_labels, 'Best Single Model', 'single_model_all')
 # get_reliability_diagrams(test_true_tta, preds_binary_tta, conf, cxr_labels, 'Best Single Model TTA', 'single_model_tta_all')
 
 # plot reliability diagrams - postive predictions
-# get_reliability_diagrams(true_positives, positive_preds, conf, cxr_labels, 'Best Single Model Positives', 'single_model_positives', pos_only=True)
-# get_reliability_diagrams(true_positives, positive_preds_tta, conf_tta, cxr_labels, 'Best Single Model TTA Positives', 'single_model_tta_positives', pos_only=True)
+get_reliability_diagrams(true_positives, positive_preds, conf_pos, cxr_labels, 'Best Single Model Positives', 'single_model_positives', pos_only=True)
+get_reliability_diagrams(true_positives, positive_preds_tta, conf_tta_pos, cxr_labels, 'Best Single Model TTA Positives', 'single_model_tta_positives', pos_only=True)
 
 # Get ROC curves
 # plot_roc_mp(test_true, test_pred, cxr_labels, 'Best Single Model', 'roc')
@@ -138,16 +138,16 @@ preds_binary_en, conf = get_binary_preds(test_pred_en, thresholds_values)
 preds_binary_tta_en, conf_tta_en = get_binary_preds(test_pred_tta_en, thresholds_values)
 
 # Extract positive preds and confidence values
-positive_preds_en, true_positives_en, conf_en = filter_positives(test_pred_en, test_true, thresholds_values)
-positive_preds_tta_en, true_positives_tta_en, conf_tta_en = filter_positives(test_pred_tta_en, test_true, thresholds_values)
+positive_preds_en, true_positives_en, conf_en_pos = filter_positives(test_pred_en, test_true, thresholds_values)
+positive_preds_tta_en, true_positives_tta_en, conf_tta_en_pos = filter_positives(test_pred_tta_en, test_true, thresholds_values)
 
 # Plot reliability diagrams
 # get_reliability_diagrams(test_true, preds_binary_en, conf, cxr_labels, 'Ensemble Model', 'ensemble_model_all')
 # get_reliability_diagrams(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA', 'ensemble_model_tta_all')
 
 # plot reliability diagrams - postive predictions
-# get_reliability_diagrams(true_positives_en, positive_preds_en, conf_en, cxr_labels, 'Ensemble Model Positives', 'ensemble_model_positives', pos_only=True)
-# get_reliability_diagrams(true_positives_tta_en, positive_preds_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA Positives', 'ensemble_model_tta_positives',pos_only=True)
+get_reliability_diagrams(true_positives_en, positive_preds_en, conf_en_pos, cxr_labels, 'Ensemble Model Positives', 'ensemble_model_positives', pos_only=True)
+get_reliability_diagrams(true_positives_tta_en, positive_preds_tta_en, conf_tta_en_pos, cxr_labels, 'Ensemble Model TTA Positives', 'ensemble_model_tta_positives',pos_only=True)
 
 # get_reliability_diagrams_mp(test_true, preds_binary, conf, cxr_labels, 'Ensemble Model')
 # get_reliability_diagrams_mp(test_true_tta, preds_binary_tta_en, conf_tta_en, cxr_labels, 'Ensemble Model TTA')
@@ -347,5 +347,41 @@ auc_results = pd.DataFrame({
 })
 
 # Save the DataFrame as a CSV file
-auc_results.to_csv('/home/kell7033/git/CheXzero/auc_results.csv', index=False)
+auc_results.to_csv('results/tables/auc_results.csv', index=False)
 
+# Get ECE measurements
+cal_sm = rd.compute_calibration(test_true, preds_binary, conf, num_bins=20, pos_only=False)
+ece_sm = cal_sm['expected_calibration_error']
+cal_sm_tta = rd.compute_calibration(test_true_tta, preds_binary_tta, conf_tta, num_bins=20, pos_only=False)
+ece_sm_tta = cal_sm_tta['expected_calibration_error']
+cal_ens = rd.compute_calibration(test_true, preds_binary_en, conf, num_bins=20, pos_only=False)
+ece_ens = cal_ens['expected_calibration_error']
+cal_ens_tta = rd.compute_calibration(test_true, preds_binary_tta_en, conf_tta_en, num_bins=20, pos_only=False)
+ece_ens_tta = cal_ens_tta['expected_calibration_error']
+
+# Positives only
+cal_sm_pos = rd.compute_calibration(true_positives, positive_preds, conf, num_bins=20, pos_only=True)
+ece_sm_pos = cal_sm_pos['expected_calibration_error']
+cal_sm_tta_pos = rd.compute_calibration(true_positives_tta, positive_preds_tta, conf_tta, num_bins=20, pos_only=True)
+ece_sm_tta_pos = cal_sm_tta_pos['expected_calibration_error']
+cal_ens_pos = rd.compute_calibration(true_positives_en, positive_preds_en, conf_en_pos, num_bins=20, pos_only=True)
+ece_ens_pos = cal_ens_pos['expected_calibration_error']
+cal_ens_tta_pos = rd.compute_calibration(true_positives_tta_en, positive_preds_tta_en, conf_tta_en_pos, num_bins=20, pos_only=True)
+ece_ens_tta_pos = cal_ens_tta_pos['expected_calibration_error']
+
+# Create a DataFrame with the ECE results
+ece_results = pd.DataFrame({
+    'Class': cxr_labels,
+    'ECE Single Model': ece_sm,
+    'ECE Single Model TTA': ece_sm_tta,
+    'ECE Ensemble Model': ece_ens,
+    'ECE Ensemble Model TTA': ece_ens_tta
+}).to_csv('results/tables/ece_results.csv', index=False)
+
+ece_results_pos = pd.DataFrame({
+    'Class': cxr_labels,
+    'ECE Single Model Positives': ece_sm_pos,
+    'ECE Single Model TTA Positives': ece_sm_tta_pos,
+    'ECE Ensemble Model Positives': ece_ens_pos,
+    'ECE Ensemble Model TTA Positives': ece_ens_tta_pos
+}).to_csv('results/tables/ece_results_pos.csv', index=False)
