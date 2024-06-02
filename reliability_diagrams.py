@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def compute_calibration(true_labels, pred_labels, confidences, num_bins=10, pos_only=False):
+def compute_calibration(true_labels, pred_labels, confidences, num_bins=20):
     """Collects predictions into bins used to draw a reliability diagram.
 
     Arguments:
@@ -31,13 +31,6 @@ def compute_calibration(true_labels, pred_labels, confidences, num_bins=10, pos_
     assert(len(confidences) == len(pred_labels))
     assert(len(confidences) == len(true_labels))
     assert(num_bins > 0)
-
-    if pos_only:
-        # Remove NaN values
-        valid_indices = ~np.isnan(true_labels) & ~np.isnan(pred_labels) & ~np.isnan(confidences)
-        true_labels = true_labels[valid_indices]
-        pred_labels = pred_labels[valid_indices]
-        confidences = confidences[valid_indices]
 
     bin_size = 1.0 / num_bins
     bins = np.linspace(0.0, 1.0, num_bins + 1)
@@ -74,7 +67,7 @@ def compute_calibration(true_labels, pred_labels, confidences, num_bins=10, pos_
 def _reliability_diagram_subplot(ax, bin_data, 
                                  draw_ece=True, 
                                  draw_bin_importance=False,
-                                 title="Reliability Diagram", 
+                                 title="", 
                                  xlabel="Confidence", 
                                  ylabel="Expected Accuracy"):
     """Draws a reliability diagram into a subplot."""
@@ -118,12 +111,16 @@ def _reliability_diagram_subplot(ax, bin_data,
         ece = (bin_data["expected_calibration_error"] * 100)
         ax.text(0.98, 0.02, "ECE=%.2f" % ece, color="black", 
                 ha="right", va="bottom", transform=ax.transAxes)
+    # if draw_auc:
+    #     auc = auc
+    #     ax.text(0.98, 0.08, "AUC=%.2f" % auc, color="black", 
+    #             ha="right", va="bottom", transform=ax.transAxes)
 
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     #ax.set_xticks(bins)
-
-    ax.set_title(title)
+    if title != "" and title != "Reliability Diagram":
+        ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
@@ -155,9 +152,42 @@ def _confidence_histogram_subplot(ax, bin_data,
         conf_plt = ax.axvline(x=bin_data["avg_confidence"], ls="dotted", lw=3, 
                               c="#444", label="Avg. confidence")
         ax.legend(handles=[acc_plt, conf_plt])
+        print("Accuracy: ", bin_data["avg_accuracy"])
+        print("Confidence: ", bin_data["avg_confidence"])
 
 
 def _reliability_diagram_combined(bin_data, 
+                                  draw_ece, draw_bin_importance, draw_averages, 
+                                  title, figsize, dpi, return_fig):
+    """Draws a reliability diagram and confidence histogram using the output
+    from compute_calibration()."""
+    figsize = (figsize[0], figsize[0] * 1.4)
+
+    fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=figsize, dpi=dpi, 
+                           gridspec_kw={"height_ratios": [4, 1]})
+    ax[0].set_facecolor('white')
+    ax[1].set_facecolor('white')
+    plt.tight_layout()
+    plt.subplots_adjust(hspace=-0.1)
+
+    _reliability_diagram_subplot(ax[0], bin_data, draw_ece, draw_bin_importance, 
+                                 title=title, xlabel="")
+    # Draw the confidence histogram upside down.
+    orig_counts = bin_data["counts"]
+    bin_data["counts"] = -bin_data["counts"]
+    _confidence_histogram_subplot(ax[1], bin_data, draw_averages, title="")
+    bin_data["counts"] = orig_counts
+
+    # Also negate the ticks for the upside-down histogram.
+    new_ticks = np.abs(ax[1].get_yticks()).astype(np.int64)
+    ax[1].set_yticklabels(new_ticks) 
+    
+    plt.tight_layout()
+    plt.show()
+
+    if return_fig: return fig
+
+def _reliability_diagram_combined_mp(bin_data, 
                                   draw_ece, draw_bin_importance, draw_averages, 
                                   title, figsize, dpi, return_fig):
     """Draws a reliability diagram and confidence histogram using the output
@@ -188,10 +218,11 @@ def _reliability_diagram_combined(bin_data,
     if return_fig: return fig
 
 
+
 def reliability_diagram(true_labels, pred_labels, confidences, num_bins=10,
                         draw_ece=True, draw_bin_importance=False, 
                         draw_averages=True, title="Reliability Diagram", 
-                        figsize=(6, 6), dpi=72, return_fig=False, pos_only=False):
+                        figsize=(6, 6), dpi=72, return_fig=False):
     """Draws a reliability diagram and confidence histogram in a single plot.
     
     First, the model's predictions are divided up into bins based on their
@@ -232,7 +263,7 @@ def reliability_diagram(true_labels, pred_labels, confidences, num_bins=10,
         dpi: setting for matplotlib
         return_fig: if True, returns the matplotlib Figure object
     """
-    bin_data = compute_calibration(true_labels, pred_labels, confidences, num_bins, pos_only)
+    bin_data = compute_calibration(true_labels, pred_labels, confidences, num_bins)
     return _reliability_diagram_combined(bin_data, draw_ece, draw_bin_importance,
                                          draw_averages, title, figsize=figsize, 
                                          dpi=dpi, return_fig=return_fig)
